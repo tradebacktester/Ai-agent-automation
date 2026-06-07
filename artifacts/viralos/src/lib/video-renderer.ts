@@ -12,6 +12,14 @@ export interface BrollClip {
   thumbnail?: string;
 }
 
+export interface PhraseTimestamp {
+  phrase: string;
+  startSec: number;
+  endSec: number;
+  isHook: boolean;
+  isCTA: boolean;
+}
+
 const FPS = 30;
 const W = 540;
 const H = 960;
@@ -114,7 +122,6 @@ function drawDarkMotivationBg(ctx: CanvasRenderingContext2D, sec: number) {
   ctx.fillStyle = bg;
   ctx.fillRect(0, 0, W, H);
 
-  // Pulsing red core glow
   const pulse = 0.5 + Math.sin(sec * 1.5) * 0.15;
   const glow = ctx.createRadialGradient(W / 2, H * 0.45, 0, W / 2, H * 0.45, W * 0.7 * pulse);
   glow.addColorStop(0, "rgba(180,20,20,0.18)");
@@ -132,7 +139,6 @@ function drawLuxuryCinematicBg(ctx: CanvasRenderingContext2D, sec: number) {
   ctx.fillStyle = bg;
   ctx.fillRect(0, 0, W, H);
 
-  // Golden top light sweep
   const sweep = (sec * 0.04) % 1;
   const goldGlow = ctx.createLinearGradient(W * sweep - W * 0.3, 0, W * sweep + W * 0.3, H * 0.3);
   goldGlow.addColorStop(0, "rgba(0,0,0,0)");
@@ -151,7 +157,6 @@ function drawDocumentaryBg(ctx: CanvasRenderingContext2D, sec: number) {
   ctx.fillStyle = bg;
   ctx.fillRect(0, 0, W, H);
 
-  // Warm center highlight
   const warm = ctx.createRadialGradient(W / 2, H / 2, 0, W / 2, H / 2, W * 0.9);
   warm.addColorStop(0, "rgba(80,55,30,0.12)");
   warm.addColorStop(1, "rgba(0,0,0,0)");
@@ -167,7 +172,6 @@ function drawAnimeEditBg(ctx: CanvasRenderingContext2D, sec: number) {
   ctx.fillStyle = bg;
   ctx.fillRect(0, 0, W, H);
 
-  // Speed lines radiating from center
   const cx = W / 2, cy = H * 0.4;
   const numLines = 24;
   const rotOffset = sec * 0.1;
@@ -187,7 +191,6 @@ function drawAnimeEditBg(ctx: CanvasRenderingContext2D, sec: number) {
   }
   ctx.restore();
 
-  // Aura core
   const aura = ctx.createRadialGradient(cx, cy, 0, cx, cy, 150 + Math.sin(sec * 2) * 20);
   aura.addColorStop(0, "rgba(100,0,255,0.18)");
   aura.addColorStop(0.5, "rgba(0,100,255,0.06)");
@@ -206,22 +209,6 @@ function drawAnimatedBackground(ctx: CanvasRenderingContext2D, sec: number, styl
 }
 
 // ─── Cinematic Overlays ──────────────────────────────────────────────
-
-function drawColorGrade(ctx: CanvasRenderingContext2D, style: string, opacity = 0.45) {
-  const grades: Record<string, { color: string; blend: string }> = {
-    dark_motivation: { color: "rgba(20,0,0,1)", blend: "multiply" },
-    luxury_cinematic: { color: "rgba(5,8,25,1)", blend: "multiply" },
-    documentary: { color: "rgba(20,12,5,1)", blend: "multiply" },
-    anime_edit: { color: "rgba(0,0,15,1)", blend: "multiply" },
-  };
-  const grade = grades[style] ?? grades["dark_motivation"];
-  ctx.save();
-  ctx.globalCompositeOperation = grade.blend as GlobalCompositeOperation;
-  ctx.globalAlpha = opacity;
-  ctx.fillStyle = grade.color;
-  ctx.fillRect(0, 0, W, H);
-  ctx.restore();
-}
 
 function drawVignette(ctx: CanvasRenderingContext2D) {
   const vig = ctx.createRadialGradient(W / 2, H / 2, H * 0.18, W / 2, H / 2, H * 0.85);
@@ -255,14 +242,12 @@ function buildPhrases(text: string, maxWords = 3): string[] {
   return phrases;
 }
 
-function buildScript(script: VideoScript): { allText: string; phrases: string[]; hookEnd: number; bodyEnd: number } {
+function buildScript(script: VideoScript): { phrases: string[]; hookEnd: number; bodyEnd: number } {
   const hookPhrases = buildPhrases(script.hook, 3);
   const bodyPhrases = buildPhrases(script.body, 4);
   const ctaPhrases = buildPhrases(script.cta, 3);
   const phrases = [...hookPhrases, ...bodyPhrases, ...ctaPhrases];
-  const allText = [script.hook, script.body, script.cta].join(" ");
   return {
-    allText,
     phrases,
     hookEnd: hookPhrases.length,
     bodyEnd: hookPhrases.length + bodyPhrases.length,
@@ -276,7 +261,7 @@ function getAccentColor(style: string): string {
 function drawPhraseText(
   ctx: CanvasRenderingContext2D,
   phrase: string,
-  progress: number, // 0..1 within this phrase's lifetime
+  progress: number,
   style: string,
   isHook: boolean,
   isCTA: boolean,
@@ -294,7 +279,6 @@ function drawPhraseText(
   ctx.font = `${fontWeight} ${fontSize}px system-ui, -apple-system, sans-serif`;
   ctx.textAlign = "center";
 
-  // Scale animation
   const scale = 0.85 + easeOut(Math.min(progress * 6, 1)) * 0.15;
   ctx.translate(W / 2, H / 2);
   ctx.scale(scale, scale);
@@ -305,7 +289,6 @@ function drawPhraseText(
   const lineH = fontSize * 1.25;
   const maxW = W - 80;
 
-  // Measure total height
   let lines: string[][] = [[]];
   for (const word of words) {
     const candidate = [...lines[lines.length - 1], word];
@@ -322,24 +305,19 @@ function drawPhraseText(
 
   lines.forEach((lineWords, lineIdx) => {
     const lineY = baseY + lineIdx * lineH;
-    const lineText = lineWords.join(" ");
 
-    // Shadow/glow
     ctx.shadowColor = accentColor;
     ctx.shadowBlur = isHook ? 30 : 15;
 
-    // Each word colored alternately
-    let xOffset = 0;
     const wordWidths = lineWords.map((w) => ctx.measureText(w + " ").width);
-    const totalLineW = wordWidths.reduce((a, b) => a + b, 0);
-    let curX = W / 2 - totalLineW / 2;
+    let curX = W / 2 - wordWidths.reduce((a, b) => a + b, 0) / 2;
 
     lineWords.forEach((word, wi) => {
       const isAccent = (lineIdx + wi) % 3 === 0;
       ctx.fillStyle = isAccent ? accentColor : "#FFFFFF";
       ctx.shadowColor = isAccent ? accentColor : "rgba(0,0,0,0.8)";
       ctx.shadowBlur = isAccent ? 20 : 10;
-      ctx.fillText(word, curX + wordWidths[wi] / 2 - ctx.measureText(" ").width / 2, lineY + xOffset);
+      ctx.fillText(word, curX + wordWidths[wi] / 2 - ctx.measureText(" ").width / 2, lineY);
       curX += wordWidths[wi];
     });
   });
@@ -357,7 +335,7 @@ async function loadVideoElement(url: string): Promise<HTMLVideoElement | null> {
     vid.playsInline = true;
     vid.preload = "auto";
 
-    const timeout = setTimeout(() => resolve(null), 8000);
+    const timeout = setTimeout(() => resolve(null), 12000);
 
     vid.addEventListener("canplay", () => {
       clearTimeout(timeout);
@@ -374,15 +352,11 @@ async function loadVideoElement(url: string): Promise<HTMLVideoElement | null> {
   });
 }
 
-function drawVideoToCanvas(
-  ctx: CanvasRenderingContext2D,
-  vid: HTMLVideoElement,
-) {
+function drawVideoToCanvas(ctx: CanvasRenderingContext2D, vid: HTMLVideoElement) {
   if (vid.readyState < 2) return;
   const vw = vid.videoWidth || W;
   const vh = vid.videoHeight || H;
 
-  // Cover mode — fill canvas maintaining aspect ratio
   const scale = Math.max(W / vw, H / vh);
   const sw = vw * scale;
   const sh = vh * scale;
@@ -399,21 +373,23 @@ export async function generateVideo(
   onProgress?: (pct: number) => void,
   audioBlob?: Blob,
   brollClips?: BrollClip[],
+  phraseTimestamps?: PhraseTimestamp[],
 ): Promise<Blob> {
   const style = script.videoStyle ?? "dark_motivation";
 
-  // Load B-roll video elements
   const loadedClips: { el: HTMLVideoElement; duration: number }[] = [];
   if (brollClips && brollClips.length > 0) {
-    for (const clip of brollClips) {
-      const el = await loadVideoElement(clip.url);
-      if (el) {
-        loadedClips.push({ el, duration: Math.min(clip.duration, 15) });
-      }
+    const loadResults = await Promise.all(
+      brollClips.map(async (clip) => {
+        const el = await loadVideoElement(clip.url);
+        return el ? { el, duration: Math.min(clip.duration, 15) } : null;
+      })
+    );
+    for (const r of loadResults) {
+      if (r) loadedClips.push(r);
     }
   }
 
-  // Build phrase timing
   const scriptData = buildScript(script);
   const particles = spawnParticles(style, 120);
 
@@ -424,20 +400,17 @@ export async function generateVideo(
     const ctx = canvas.getContext("2d");
     if (!ctx) { reject(new Error("Canvas unavailable")); return; }
 
-    // Determine total duration from audio
     let totalSeconds = 45;
-    let audioCtx: AudioContext | null = null;
-    let audioSource: AudioBufferSourceNode | null = null;
 
     if (audioBlob) {
       try {
-        audioCtx = new AudioContext();
+        const audioCtx = new AudioContext();
         const arrayBuf = await audioBlob.arrayBuffer();
         const audioBuf = await audioCtx.decodeAudioData(arrayBuf);
-        totalSeconds = Math.min(audioBuf.duration + 2, 120);
+        totalSeconds = Math.min(audioBuf.duration + 1.5, 120);
 
         const dest = audioCtx.createMediaStreamDestination();
-        audioSource = audioCtx.createBufferSource();
+        const audioSource = audioCtx.createBufferSource();
         audioSource.buffer = audioBuf;
         audioSource.connect(dest);
 
@@ -451,26 +424,20 @@ export async function generateVideo(
 
         const chunks: BlobPart[] = [];
         recorder.ondataavailable = (e) => { if (e.data?.size > 0) chunks.push(e.data); };
-        recorder.onstop = () => { audioCtx!.close(); resolve(new Blob(chunks, { type: recorder.mimeType })); };
-        recorder.onerror = (e) => { audioCtx!.close(); reject(e); };
+        recorder.onstop = () => { audioCtx.close(); resolve(new Blob(chunks, { type: recorder.mimeType })); };
+        recorder.onerror = (e) => { audioCtx.close(); reject(e); };
 
-        // Start clip playlist
         startClipPlaylist(loadedClips);
-
         recorder.start(250);
         audioSource.start(0);
 
-        runFrameLoop(ctx, 0, totalSeconds, particles, loadedClips, script, style, scriptData, recorder, onProgress);
+        runFrameLoop(ctx, 0, totalSeconds, particles, loadedClips, script, style, scriptData, recorder, onProgress, phraseTimestamps);
         return;
       } catch (e) {
         console.warn("Audio setup failed, silent fallback:", e);
-        audioCtx?.close().catch(() => {});
-        audioCtx = null;
       }
     }
 
-    // Silent path
-    const silentDuration = 45;
     const stream = canvas.captureStream(FPS);
     const recorder = buildRecorder(stream);
     if (!recorder) { reject(new Error("MediaRecorder unsupported")); return; }
@@ -482,7 +449,7 @@ export async function generateVideo(
 
     startClipPlaylist(loadedClips);
     recorder.start(250);
-    runFrameLoop(ctx, 0, silentDuration, particles, loadedClips, script, style, scriptData, recorder, onProgress);
+    runFrameLoop(ctx, 0, 45, particles, loadedClips, script, style, scriptData, recorder, onProgress, phraseTimestamps);
   });
 }
 
@@ -490,9 +457,7 @@ function buildRecorder(stream: MediaStream): MediaRecorder | null {
   const types = ["video/webm;codecs=vp9", "video/webm;codecs=vp8", "video/webm", "video/mp4"];
   for (const t of types) {
     if (MediaRecorder.isTypeSupported(t)) {
-      try {
-        return new MediaRecorder(stream, { mimeType: t, videoBitsPerSecond: 4_000_000 });
-      } catch {}
+      try { return new MediaRecorder(stream, { mimeType: t, videoBitsPerSecond: 4_000_000 }); } catch {}
     }
   }
   try { return new MediaRecorder(stream); } catch { return null; }
@@ -503,16 +468,11 @@ function startClipPlaylist(clips: { el: HTMLVideoElement; duration: number }[]) 
   let idx = 0;
 
   const playNext = () => {
-    if (idx >= clips.length) { idx = 0; } // loop
+    if (idx >= clips.length) idx = 0;
     const { el, duration } = clips[idx];
     el.currentTime = 0;
     el.play().catch(() => {});
-
-    const timeout = duration * 1000 - 200;
-    setTimeout(() => {
-      idx++;
-      playNext();
-    }, Math.max(timeout, 500));
+    setTimeout(() => { idx++; playNext(); }, Math.max(duration * 1000 - 200, 500));
   };
 
   playNext();
@@ -539,6 +499,7 @@ function runFrameLoop(
   scriptData: ReturnType<typeof buildScript>,
   recorder: MediaRecorder,
   onProgress?: (pct: number) => void,
+  phraseTimestamps?: PhraseTimestamp[],
 ) {
   const totalFrames = Math.round(FPS * totalSeconds);
   const dt = 1 / FPS;
@@ -558,7 +519,6 @@ function runFrameLoop(
     if (clipEl && clipEl.readyState >= 2) {
       drawVideoToCanvas(ctx, clipEl);
 
-      // Color grade over real footage
       ctx.save();
       ctx.globalCompositeOperation = "multiply";
       ctx.globalAlpha = 0.55;
@@ -572,7 +532,6 @@ function runFrameLoop(
       ctx.fillRect(0, 0, W, H);
       ctx.restore();
 
-      // Tint overlay
       const tints: Record<string, string> = {
         dark_motivation: "rgba(60,0,0,0.15)",
         luxury_cinematic: "rgba(10,8,2,0.12)",
@@ -585,7 +544,6 @@ function runFrameLoop(
       ctx.fillRect(0, 0, W, H);
       ctx.restore();
     } else {
-      // Canvas-only animated background
       drawAnimatedBackground(ctx, sec, style);
       updateParticles(particles, dt);
       drawParticles(ctx, particles, style);
@@ -594,36 +552,44 @@ function runFrameLoop(
     // ── Vignette ──
     drawVignette(ctx);
 
-    // ── Film grain (documentary gets heavier grain) ──
     if (style === "documentary" || style === "dark_motivation") {
       drawFilmGrain(ctx, sec, style === "documentary" ? 0.06 : 0.035);
     }
 
-    // ── Word-by-word text ──
-    const phrases = scriptData.phrases;
-    if (phrases.length > 0) {
-      // Distribute phrases evenly across 90% of total duration
-      const textDuration = totalSeconds * 0.92;
-      const secPerPhrase = textDuration / phrases.length;
-      const phraseIdx = Math.min(Math.floor(sec / secPerPhrase), phrases.length - 1);
-      const phraseProgress = (sec % secPerPhrase) / secPerPhrase;
-      const phrase = phrases[phraseIdx];
-      const isHook = phraseIdx < scriptData.hookEnd;
-      const isCTA = phraseIdx >= scriptData.bodyEnd;
+    // ── Captions: use real timestamps if available, otherwise even distribution ──
+    if (phraseTimestamps && phraseTimestamps.length > 0) {
+      const current = phraseTimestamps.find(
+        (pt) => sec >= pt.startSec && sec < pt.endSec,
+      );
+      if (current) {
+        const duration = current.endSec - current.startSec;
+        const phraseProgress = duration > 0 ? (sec - current.startSec) / duration : 0;
+        drawPhraseText(ctx, current.phrase, Math.min(phraseProgress, 0.99), style, current.isHook, current.isCTA);
+      }
+    } else {
+      const phrases = scriptData.phrases;
+      if (phrases.length > 0) {
+        const textDuration = totalSeconds * 0.92;
+        const secPerPhrase = textDuration / phrases.length;
+        const phraseIdx = Math.min(Math.floor(sec / secPerPhrase), phrases.length - 1);
+        const phraseProgress = (sec % secPerPhrase) / secPerPhrase;
+        const phrase = phrases[phraseIdx];
+        const isHook = phraseIdx < scriptData.hookEnd;
+        const isCTA = phraseIdx >= scriptData.bodyEnd;
 
-      if (sec < textDuration) {
-        drawPhraseText(ctx, phrase, phraseProgress, style, isHook, isCTA);
+        if (sec < textDuration) {
+          drawPhraseText(ctx, phrase, phraseProgress, style, isHook, isCTA);
+        }
       }
     }
 
     // ── Bottom caption bar ──
-    const captionFontSize = 18;
     ctx.save();
     ctx.globalAlpha = 0.6;
     ctx.fillStyle = "rgba(0,0,0,0.5)";
     ctx.fillRect(0, H - 56, W, 56);
     ctx.globalAlpha = 0.9;
-    ctx.font = `bold ${captionFontSize}px system-ui, sans-serif`;
+    ctx.font = "bold 18px system-ui, sans-serif";
     ctx.textAlign = "center";
     ctx.fillStyle = "#FFFFFF";
     ctx.fillText(script.title.toUpperCase().slice(0, 36), W / 2, H - 30);
@@ -637,16 +603,14 @@ function runFrameLoop(
     ctx.fillText("VIRALOS AI", W - 18, 30);
     ctx.restore();
 
-    // ── Scene transition flashes at key moments ──
+    // ── Scene transition flashes ──
     const hookEndSec = totalSeconds * 0.15;
     const bodyEndSec = totalSeconds * 0.82;
-    const transitionWidth = 0.25;
     for (const moment of [hookEndSec, bodyEndSec]) {
       const dist = Math.abs(sec - moment);
-      if (dist < transitionWidth) {
-        const fade = 1 - dist / transitionWidth;
+      if (dist < 0.25) {
         ctx.save();
-        ctx.globalAlpha = fade * 0.35;
+        ctx.globalAlpha = (1 - dist / 0.25) * 0.35;
         ctx.fillStyle = "#FFFFFF";
         ctx.fillRect(0, 0, W, H);
         ctx.restore();

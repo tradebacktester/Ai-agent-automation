@@ -4,7 +4,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
-import { generateVideo, type BrollClip } from "@/lib/video-renderer";
+import { generateVideo, type BrollClip, type PhraseTimestamp } from "@/lib/video-renderer";
 import { storeVideoBlob, downloadVideo } from "@/lib/video-store";
 import {
   Wand2, FileText, Mic, Clapperboard, Download, CheckCircle,
@@ -124,10 +124,12 @@ export default function CreateVideo() {
   const [audioPreviewUrl, setAudioPreviewUrl] = useState<string | null>(null);
   const [brollClips, setBrollClips] = useState<BrollClip[]>([]);
   const [brollLoading, setBrollLoading] = useState(false);
+  const [phraseTimestamps, setPhraseTimestamps] = useState<PhraseTimestamp[] | null>(null);
 
   const videoGenRef = useRef<Promise<void> | null>(null);
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const brollRef = useRef<BrollClip[]>([]);
+  const phraseTimestampsRef = useRef<PhraseTimestamp[] | null>(null);
   const stageIndex = PIPELINE_STAGES.findIndex((s) => s.key === stage);
 
   function simulateSteps(items: string[], onDone: () => void | Promise<void>, stepDelayMs = 1400) {
@@ -226,16 +228,18 @@ export default function CreateVideo() {
     }
   }
 
-  function startVideoGeneration(script: GeneratedScript, voiceBlob?: Blob, clips?: BrollClip[]) {
+  function startVideoGeneration(script: GeneratedScript, voiceBlob?: Blob, clips?: BrollClip[], timestamps?: PhraseTimestamp[]) {
     if (videoGenRef.current) return;
     setVideoGenerating(true);
     setVideoGenProgress(0);
     const usedClips = clips ?? brollRef.current;
+    const usedTimestamps = timestamps ?? phraseTimestampsRef.current ?? undefined;
     videoGenRef.current = generateVideo(
       { title, hook: script.hook, body: script.script, cta: script.cta, videoStyle },
       (pct) => setVideoGenProgress(pct),
       voiceBlob,
       usedClips.length > 0 ? usedClips : undefined,
+      usedTimestamps ?? undefined,
     )
       .then((blob) => {
         if (projectId !== null) {
@@ -361,6 +365,60 @@ export default function CreateVideo() {
     // Kick off B-roll search in parallel with TTS (both are async)
     const brollPromise = fetchBrollClips(activeScript);
 
+    function base64ToBlob(b64: string, mime: string): Blob {
+      const binary = atob(b64);
+      const bytes = new Uint8Array(binary.length);
+      for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+      return new Blob([bytes], { type: mime });
+    }
+
+    function attachAudioPreview(blob: Blob) {
+      const url = URL.createObjectURL(blob);
+      if (audioPreviewUrl) URL.revokeObjectURL(audioPreviewUrl);
+      setAudioPreviewUrl(url);
+      if (audioRef.current) { audioRef.current.pause(); audioRef.current.src = ""; }
+      const audio = new Audio(url);
+      audioRef.current = audio;
+      audio.volume = 0.85;
+      audio.play().catch(() => {});
+    }
+
+    try {
+      // Try with-timestamps endpoint first for perfect caption sync
+      const tsRes = await fetch("/api/voiceovers/synthesize-with-timestamps", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          text: fullText,
+          voiceStyle,
+          hook: activeScript.hook,
+          body: activeScript.script,
+          cta: activeScript.cta,
+        }),
+        signal: AbortSignal.timeout(55000),
+      });
+
+      if (tsRes.ok) {
+        const { audioBase64, phrases, mimeType } = await tsRes.json() as {
+          audioBase64: string;
+          phrases: PhraseTimestamp[];
+          mimeType: string;
+        };
+        const blob = base64ToBlob(audioBase64, mimeType ?? "audio/mpeg");
+        setAudioBlob(blob);
+        setPhraseTimestamps(phrases);
+        phraseTimestampsRef.current = phrases;
+        attachAudioPreview(blob);
+        const clips = await brollPromise;
+        startVideoGeneration(activeScript, blob, clips, phrases);
+        resolveVoice(blob);
+        return;
+      }
+    } catch (err) {
+      console.warn("with-timestamps failed, falling back to synthesize:", err);
+    }
+
+    // Fallback: regular synthesize (no timestamp sync)
     try {
       const res = await fetch("/api/voiceovers/synthesize", {
         method: "POST",
@@ -372,20 +430,7 @@ export default function CreateVideo() {
       if (res.ok) {
         const blob = await res.blob();
         setAudioBlob(blob);
-
-        const url = URL.createObjectURL(blob);
-        if (audioPreviewUrl) URL.revokeObjectURL(audioPreviewUrl);
-        setAudioPreviewUrl(url);
-
-        if (audioRef.current) {
-          audioRef.current.pause();
-          audioRef.current.src = "";
-        }
-        const audio = new Audio(url);
-        audioRef.current = audio;
-        audio.volume = 0.85;
-        audio.play().catch(() => {});
-
+        attachAudioPreview(blob);
         const clips = await brollPromise;
         startVideoGeneration(activeScript, blob, clips);
         resolveVoice(blob);

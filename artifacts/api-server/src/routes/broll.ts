@@ -85,12 +85,14 @@ router.get("/search", async (req, res) => {
       const files: any[] = v.video_files ?? [];
       const portrait = files.find((f) => f.height > f.width && f.quality === "hd")
         ?? files.find((f) => f.height > f.width)
-        ?? files.find((f) => f.quality === "hd")
+        ?? files.find((f) => f.quality === "sd")
         ?? files[0];
+
+      const rawUrl = portrait?.link ?? null;
 
       return {
         id: v.id,
-        url: portrait?.link ?? null,
+        url: rawUrl ? `/api/broll/proxy?url=${encodeURIComponent(rawUrl)}` : null,
         width: portrait?.width ?? 1080,
         height: portrait?.height ?? 1920,
         duration: v.duration ?? 10,
@@ -103,6 +105,37 @@ router.get("/search", async (req, res) => {
   } catch (err) {
     console.error("Pexels search error:", err);
     res.status(500).json({ error: String(err), clips: [] });
+  }
+});
+
+router.get("/proxy", async (req, res) => {
+  const { url } = req.query as { url?: string };
+  if (!url) { res.status(400).end(); return; }
+
+  try {
+    const decoded = decodeURIComponent(url);
+    const upstream = await fetch(decoded, {
+      headers: { "User-Agent": "Mozilla/5.0" },
+    });
+
+    if (!upstream.ok) {
+      res.status(upstream.status).end();
+      return;
+    }
+
+    const ct = upstream.headers.get("content-type") ?? "video/mp4";
+    const cl = upstream.headers.get("content-length");
+
+    res.setHeader("Content-Type", ct);
+    res.setHeader("Access-Control-Allow-Origin", "*");
+    res.setHeader("Cache-Control", "public, max-age=3600");
+    if (cl) res.setHeader("Content-Length", cl);
+
+    const buf = await upstream.arrayBuffer();
+    res.send(Buffer.from(buf));
+  } catch (err) {
+    console.error("Broll proxy error:", err);
+    res.status(500).end();
   }
 });
 

@@ -1,12 +1,12 @@
 import { useState } from "react";
 import { Link, useLocation } from "wouter";
-import { UserButton } from "@clerk/react";
 import { motion, AnimatePresence } from "framer-motion";
+import { useAdminAuth } from "@/contexts/AdminAuth";
 import {
   LayoutDashboard, Video, FolderOpen, BarChart3, TrendingUp,
   Settings, Zap, Bot, Brain, Cpu, Database, Upload, FlaskConical,
   Lightbulb, DollarSign, ChevronDown, ChevronRight,
-  Dna, Store, Globe, Clapperboard, Server, Film,
+  Dna, Store, Globe, Clapperboard, Server, Film, LogOut,
 } from "lucide-react";
 
 const NAV_GROUPS = [
@@ -65,6 +65,7 @@ const NAV_GROUPS = [
 export default function Layout({ children }: { children: React.ReactNode }) {
   const [location] = useLocation();
   const [collapsed, setCollapsed] = useState<Record<string, boolean>>({});
+  const { logout } = useAdminAuth();
 
   const toggleGroup = (label: string) =>
     setCollapsed((p) => ({ ...p, [label]: !p[label] }));
@@ -148,14 +149,23 @@ export default function Layout({ children }: { children: React.ReactNode }) {
           })}
         </nav>
 
-        {/* User + system status */}
+        {/* Admin + system status */}
         <div className="p-3 border-t border-sidebar-border space-y-2">
           <div className="flex items-center gap-2">
-            <UserButton appearance={{ elements: { avatarBox: "w-6 h-6" } }} />
+            <div className="w-6 h-6 rounded-full bg-primary/20 border border-primary/30 flex items-center justify-center">
+              <Zap className="w-3 h-3 text-primary" />
+            </div>
             <div className="min-w-0 flex-1">
-              <p className="text-[10px] font-bold text-foreground truncate">Creator OS</p>
+              <p className="text-[10px] font-bold text-foreground truncate">Admin</p>
               <p className="text-[9px] text-emerald-400 flex items-center gap-1">● Autonomous · Online</p>
             </div>
+            <button
+              onClick={logout}
+              title="Logout"
+              className="text-muted-foreground hover:text-red-400 transition-colors p-1 rounded"
+            >
+              <LogOut className="w-3.5 h-3.5" />
+            </button>
           </div>
           <div className="grid grid-cols-3 gap-1">
             {[["Agents", "8"], ["Loop", "ON"], ["Auto", "✓"]].map(([label, val]) => (
@@ -174,7 +184,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
           key={location}
           initial={{ opacity: 0, y: 4 }}
           animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.15, ease: "easeOut" }}
+          transition={{ duration: 0.15 }}
           className="h-full"
         >
           {children}

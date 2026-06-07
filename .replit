@@ -37,3 +37,9 @@ externalPort = 3000
 
 [nix]
 channel = "stable-25_05"
+
+[userenv]
+
+[userenv.shared]
+VITE_ADMIN_ID = "admin"
+VITE_ADMIN_PASSWORD = "Viralos@2024!"

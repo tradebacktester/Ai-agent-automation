@@ -1,11 +1,8 @@
-import { useEffect, useRef } from "react";
 import { Switch, Route, Router as WouterRouter, useLocation, Redirect } from "wouter";
-import { QueryClient, QueryClientProvider, useQueryClient } from "@tanstack/react-query";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
-import { ClerkProvider, Show, SignIn, SignUp, useClerk } from "@clerk/react";
-import { publishableKeyFromHost } from "@clerk/react/internal";
-import { dark } from "@clerk/themes";
+import { AdminAuthProvider, useAdminAuth } from "@/contexts/AdminAuth";
 import NotFound from "@/pages/not-found";
 import Layout from "@/components/Layout";
 import Dashboard from "@/pages/Dashboard";
@@ -29,127 +26,32 @@ import BrandCreator from "@/pages/BrandCreator";
 import StoryUniverse from "@/pages/StoryUniverse";
 import EnterpriseOps from "@/pages/EnterpriseOps";
 import CinematicEngine from "@/pages/CinematicEngine";
-import LandingPage from "@/pages/LandingPage";
+import AuthPage from "@/pages/AuthPage";
 
 const queryClient = new QueryClient({
   defaultOptions: { queries: { retry: 1, staleTime: 30000 } },
 });
 
-const clerkPubKey = publishableKeyFromHost(
-  window.location.hostname,
-  import.meta.env.VITE_CLERK_PUBLISHABLE_KEY,
-);
-const clerkProxyUrl = import.meta.env.VITE_CLERK_PROXY_URL;
 const basePath = import.meta.env.BASE_URL.replace(/\/$/, "");
 
-function stripBase(path: string): string {
-  return basePath && path.startsWith(basePath) ? path.slice(basePath.length) || "/" : path;
-}
-
-const clerkAppearance = {
-  baseTheme: dark,
-  cssLayerName: "clerk",
-  options: {
-    logoPlacement: "inside" as const,
-    logoLinkUrl: basePath || "/",
-    logoImageUrl: `${window.location.origin}${basePath}/logo.svg`,
-  },
-  variables: {
-    colorPrimary: "#2563eb",
-    colorForeground: "#f0f4f8",
-    colorMutedForeground: "#8b9ab0",
-    colorDanger: "#ef4444",
-    colorBackground: "#0d1117",
-    colorInput: "#1a2332",
-    colorInputForeground: "#f0f4f8",
-    colorNeutral: "#2a3a4f",
-    fontFamily: "'Space Grotesk', 'Inter', sans-serif",
-    borderRadius: "0.625rem",
-  },
-  elements: {
-    rootBox: "w-full flex justify-center",
-    cardBox: "bg-[#0d1117] border border-[#1e2d40] rounded-2xl w-[440px] max-w-full overflow-hidden shadow-2xl",
-    card: "!shadow-none !border-0 !bg-transparent !rounded-none",
-    footer: "!shadow-none !border-0 !bg-transparent !rounded-none",
-    headerTitle: "text-white font-semibold",
-    headerSubtitle: "text-[#8b9ab0]",
-    socialButtonsBlockButtonText: "text-white",
-    formFieldLabel: "text-[#c8d8e8]",
-    footerActionLink: "text-[#2563eb]",
-    footerActionText: "text-[#8b9ab0]",
-    dividerText: "text-[#8b9ab0]",
-    identityPreviewEditButton: "text-[#2563eb]",
-    formFieldSuccessText: "text-green-400",
-    alertText: "text-white",
-    logoBox: "flex items-center justify-center py-2",
-    logoImage: "h-8",
-    socialButtonsBlockButton: "border border-[#1e2d40] bg-[#111827] hover:bg-[#1a2332]",
-    formButtonPrimary: "bg-[#2563eb] hover:bg-[#1d4ed8] text-white",
-    formFieldInput: "bg-[#1a2332] border-[#2a3a4f] text-white",
-    footerAction: "border-t border-[#1e2d40]",
-    dividerLine: "bg-[#1e2d40]",
-    alert: "bg-[#1a2332] border-[#2a3a4f]",
-    otpCodeFieldInput: "bg-[#1a2332] border-[#2a3a4f] text-white",
-    formFieldRow: "gap-2",
-    main: "px-2",
-  },
-};
-
-function SignInPage() {
-  return (
-    <div className="min-h-screen flex items-center justify-center bg-background px-4">
-      <SignIn routing="path" path={`${basePath}/sign-in`} signUpUrl={`${basePath}/sign-up`} />
-    </div>
-  );
-}
-
-function SignUpPage() {
-  return (
-    <div className="min-h-screen flex items-center justify-center bg-background px-4">
-      <SignUp routing="path" path={`${basePath}/sign-up`} signInUrl={`${basePath}/sign-in`} />
-    </div>
-  );
-}
-
-function ClerkQueryClientCacheInvalidator() {
-  const { addListener } = useClerk();
-  const qc = useQueryClient();
-  const prevUserIdRef = useRef<string | null | undefined>(undefined);
-  useEffect(() => {
-    const unsubscribe = addListener(({ user }) => {
-      const userId = user?.id ?? null;
-      if (prevUserIdRef.current !== undefined && prevUserIdRef.current !== userId) qc.clear();
-      prevUserIdRef.current = userId;
-    });
-    return unsubscribe;
-  }, [addListener, qc]);
-  return null;
+function ProtectedPage({ children }: { children: React.ReactNode }) {
+  const { isLoggedIn } = useAdminAuth();
+  if (!isLoggedIn) return <Redirect to="/login" />;
+  return <Layout>{children}</Layout>;
 }
 
 function HomeRedirect() {
-  return (
-    <>
-      <Show when="signed-in"><Redirect to="/dashboard" /></Show>
-      <Show when="signed-out"><LandingPage /></Show>
-    </>
-  );
-}
-
-function ProtectedPage({ children }: { children: React.ReactNode }) {
-  return (
-    <>
-      <Show when="signed-in"><Layout>{children}</Layout></Show>
-      <Show when="signed-out"><Redirect to="/" /></Show>
-    </>
-  );
+  const { isLoggedIn } = useAdminAuth();
+  return isLoggedIn ? <Redirect to="/dashboard" /> : <Redirect to="/login" />;
 }
 
 function AppRoutes() {
   return (
     <Switch>
       <Route path="/" component={HomeRedirect} />
-      <Route path="/sign-in/*?" component={SignInPage} />
-      <Route path="/sign-up/*?" component={SignUpPage} />
+      <Route path="/login" component={AuthPage} />
+      <Route path="/sign-in/*?" component={AuthPage} />
+      <Route path="/sign-up/*?" component={AuthPage} />
       <Route path="/dashboard"><ProtectedPage><Dashboard /></ProtectedPage></Route>
       <Route path="/create"><ProtectedPage><CreateVideo /></ProtectedPage></Route>
       <Route path="/projects"><ProtectedPage><Projects /></ProtectedPage></Route>
@@ -176,47 +78,17 @@ function AppRoutes() {
   );
 }
 
-function ClerkProviderWithRoutes() {
-  const [, setLocation] = useLocation();
-  return (
-    <ClerkProvider
-      publishableKey={clerkPubKey}
-      proxyUrl={clerkProxyUrl}
-      appearance={clerkAppearance}
-      signInUrl={`${basePath}/sign-in`}
-      signUpUrl={`${basePath}/sign-up`}
-      localization={{
-        signIn: {
-          start: {
-            title: "Welcome back",
-            subtitle: "Sign in to your VIRALOS account",
-          },
-        },
-        signUp: {
-          start: {
-            title: "Get started",
-            subtitle: "Create your VIRALOS account",
-          },
-        },
-      }}
-      routerPush={(to) => setLocation(stripBase(to))}
-      routerReplace={(to) => setLocation(stripBase(to), { replace: true })}
-    >
-      <QueryClientProvider client={queryClient}>
-        <TooltipProvider>
-          <ClerkQueryClientCacheInvalidator />
-          <AppRoutes />
-        </TooltipProvider>
-      </QueryClientProvider>
-      <Toaster />
-    </ClerkProvider>
-  );
-}
-
 export default function App() {
   return (
     <WouterRouter base={basePath}>
-      <ClerkProviderWithRoutes />
+      <AdminAuthProvider>
+        <QueryClientProvider client={queryClient}>
+          <TooltipProvider>
+            <AppRoutes />
+          </TooltipProvider>
+        </QueryClientProvider>
+        <Toaster />
+      </AdminAuthProvider>
     </WouterRouter>
   );
 }

@@ -34,8 +34,8 @@ export async function runPersonalityAgent(
     : "(No sample scripts provided — infer style from description)";
 
   const response = await openai.chat.completions.create({
-    model: "gpt-5.4",
-    max_completion_tokens: 4000,
+    model: "llama-3.3-70b-versatile",
+    max_tokens: 4000,
     messages: [
       {
         role: "system",
@@ -173,8 +173,8 @@ export async function applyStyleToContent(
   }
 
   const response = await openai.chat.completions.create({
-    model: "gpt-5.4",
-    max_completion_tokens: 2000,
+    model: "llama-3.3-70b-versatile",
+    max_tokens: 2000,
     messages: [
       {
         role: "system",

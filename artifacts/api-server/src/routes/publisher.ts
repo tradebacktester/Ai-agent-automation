@@ -66,8 +66,8 @@ router.post("/generate-metadata", async (req, res) => {
   if (!topic) { res.status(400).json({ error: "topic required" }); return; }
 
   const response = await openai.chat.completions.create({
-    model: "gpt-5.4",
-    max_completion_tokens: 1500,
+    model: "llama-3.3-70b-versatile",
+    max_tokens: 1500,
     messages: [
       {
         role: "system",

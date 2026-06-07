@@ -71,7 +71,7 @@ export async function runJarvis(
   log("Processing user command", { command: lastUserMessage.slice(0, 80) });
 
   const response = await openai.chat.completions.create({
-    model: "gpt-4o",
+    model: "llama-3.3-70b-versatile",
     max_tokens: 600,
     messages: [
       { role: "system", content: systemWithMemory },

@@ -1,5 +1,7 @@
 import OpenAI from "openai";
 
+const GROQ_BASE_URL = "https://api.groq.com/openai/v1";
+
 function createClient(): OpenAI {
   if (process.env.AI_INTEGRATIONS_OPENAI_BASE_URL && process.env.AI_INTEGRATIONS_OPENAI_API_KEY) {
     return new OpenAI({
@@ -7,11 +9,17 @@ function createClient(): OpenAI {
       baseURL: process.env.AI_INTEGRATIONS_OPENAI_BASE_URL,
     });
   }
+  if (process.env.GROQ_API_KEY) {
+    return new OpenAI({
+      apiKey: process.env.GROQ_API_KEY,
+      baseURL: GROQ_BASE_URL,
+    });
+  }
   if (process.env.OPENAI_API_KEY) {
     return new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
   }
   throw new Error(
-    "No OpenAI credentials found. Set OPENAI_API_KEY or provision the Replit AI integration.",
+    "No AI credentials found. Set GROQ_API_KEY or OPENAI_API_KEY.",
   );
 }
 

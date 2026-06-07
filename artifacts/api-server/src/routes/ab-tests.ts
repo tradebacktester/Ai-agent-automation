@@ -53,8 +53,8 @@ router.post("/generate", async (req, res) => {
     name = `Caption Style Test`;
   } else {
     const response = await openai.chat.completions.create({
-      model: "gpt-5.4",
-      max_completion_tokens: 1500,
+      model: "llama-3.3-70b-versatile",
+      max_tokens: 1500,
       messages: [
         { role: "system", content: "Generate A/B test variants for viral content optimization." },
         {

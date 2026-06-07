@@ -49,8 +49,8 @@ export async function runCalendarAgent(
   });
 
   const response = await openai.chat.completions.create({
-    model: "gpt-5.4",
-    max_completion_tokens: 4000,
+    model: "llama-3.3-70b-versatile",
+    max_tokens: 4000,
     messages: [
       {
         role: "system",
@@ -158,8 +158,8 @@ export async function runSeriesAgent(
   log("Designing serialized content series", { niche, platform, targetEpisodes });
 
   const response = await openai.chat.completions.create({
-    model: "gpt-5.4",
-    max_completion_tokens: 3000,
+    model: "llama-3.3-70b-versatile",
+    max_tokens: 3000,
     messages: [
       {
         role: "system",

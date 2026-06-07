@@ -101,8 +101,8 @@ Return ONLY valid JSON:
 }`;
 
   const response = await openai.chat.completions.create({
-    model: "gpt-5.4",
-    max_completion_tokens: 3000,
+    model: "llama-3.3-70b-versatile",
+    max_tokens: 3000,
     messages: [
       { role: "system", content: systemPrompt },
       { role: "user", content: userPrompt },
@@ -155,8 +155,8 @@ export async function runABTestAnalyzer(
   log("Analyzing A/B test variants", { variantCount: variants.length });
 
   const response = await openai.chat.completions.create({
-    model: "gpt-5.4",
-    max_completion_tokens: 1500,
+    model: "llama-3.3-70b-versatile",
+    max_tokens: 1500,
     messages: [
       {
         role: "system",

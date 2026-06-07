@@ -34,7 +34,7 @@ router.post("/generate", async (req, res) => {
   // Use GPT-4o for real AI script generation
   try {
     const aiRes = await openai.chat.completions.create({
-      model: "gpt-4o",
+      model: "llama-3.3-70b-versatile",
       max_tokens: 800,
       response_format: { type: "json_object" },
       messages: [
@@ -112,7 +112,7 @@ router.post("/generate-ai", async (req, res) => {
 
   try {
     const aiRes = await openai.chat.completions.create({
-      model: "gpt-4o",
+      model: "llama-3.3-70b-versatile",
       max_tokens: 900,
       response_format: { type: "json_object" },
       messages: [

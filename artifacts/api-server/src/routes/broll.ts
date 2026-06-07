@@ -24,7 +24,7 @@ router.post("/keywords", async (req, res) => {
 
   try {
     const response = await openai.chat.completions.create({
-      model: "gpt-4o",
+      model: "llama-3.3-70b-versatile",
       max_tokens: 400,
       response_format: { type: "json_object" },
       messages: [

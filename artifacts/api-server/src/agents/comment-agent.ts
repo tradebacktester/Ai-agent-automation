@@ -33,8 +33,8 @@ export async function runCommentAgent(
   ).join("\n");
 
   const response = await openai.chat.completions.create({
-    model: "gpt-5.4",
-    max_completion_tokens: 2500,
+    model: "llama-3.3-70b-versatile",
+    max_tokens: 2500,
     messages: [
       {
         role: "system",
@@ -128,8 +128,8 @@ export async function runMonetizationAgent(
   log("Building monetization strategy", { niche, platform, audienceSize });
 
   const response = await openai.chat.completions.create({
-    model: "gpt-5.4",
-    max_completion_tokens: 2500,
+    model: "llama-3.3-70b-versatile",
+    max_tokens: 2500,
     messages: [
       {
         role: "system",

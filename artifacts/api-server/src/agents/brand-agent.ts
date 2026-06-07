@@ -20,8 +20,8 @@ export async function runBrandAgent(prompt: string): Promise<AgentResult<{
   log("Building brand identity", { prompt });
 
   const response = await openai.chat.completions.create({
-    model: "gpt-5.4",
-    max_completion_tokens: 4000,
+    model: "llama-3.3-70b-versatile",
+    max_tokens: 4000,
     messages: [
       {
         role: "system",
@@ -146,8 +146,8 @@ export async function runPsychologyAgent(
   log("Running psychological content optimization", { topic, targetEmotion, platform });
 
   const response = await openai.chat.completions.create({
-    model: "gpt-5.4",
-    max_completion_tokens: 2500,
+    model: "llama-3.3-70b-versatile",
+    max_tokens: 2500,
     messages: [
       {
         role: "system",
@@ -215,8 +215,8 @@ export async function runUniverseAgent(
   log("Building story universe", { niche, universeTheme });
 
   const response = await openai.chat.completions.create({
-    model: "gpt-5.4",
-    max_completion_tokens: 3500,
+    model: "llama-3.3-70b-versatile",
+    max_tokens: 3500,
     messages: [
       {
         role: "system",

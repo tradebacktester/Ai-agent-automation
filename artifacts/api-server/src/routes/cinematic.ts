@@ -19,7 +19,7 @@ router.post("/scene-analyze", async (req, res) => {
 
   try {
     const aiRes = await openai.chat.completions.create({
-      model: "gpt-4o",
+      model: "llama-3.3-70b-versatile",
       max_tokens: 700,
       response_format: { type: "json_object" },
       messages: [

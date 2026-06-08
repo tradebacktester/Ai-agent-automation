@@ -21,8 +21,15 @@ const ELEVENLABS_VOICE_MAP: Record<string, string> = {
   intense_narrator: "VR6AewLTigWG4xSOukaG",
 };
 
+export interface WordTimestamp {
+  word: string;
+  startSec: number;
+  endSec: number;
+}
+
 export interface PhraseTimestamp {
   phrase: string;
+  words: WordTimestamp[];
   startSec: number;
   endSec: number;
   isHook: boolean;
@@ -77,6 +84,7 @@ function buildPhraseTimestamps(
     const group = words.slice(i, Math.min(i + maxWordsPerPhrase, words.length));
     result.push({
       phrase: group.map((w) => w.word).join(" "),
+      words: group.map((w) => ({ word: w.word, startSec: w.start, endSec: w.end })),
       startSec: group[0].start,
       endSec: group[group.length - 1].end + 0.15,
       isHook: i < hookWordCount,

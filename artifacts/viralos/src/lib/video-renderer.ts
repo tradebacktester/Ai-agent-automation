@@ -248,7 +248,7 @@ function drawCaption(
   if (alpha < 0.02) return;
 
   const accent  = ACCENT_COLORS[style] ?? "#4F8DFF";
-  const fontSize = isHook ? 66 : isCTA ? 50 : 56;
+  const fontSize = isHook ? 52 : isCTA ? 40 : 46;
   const fontStr  = `900 ${fontSize}px system-ui,-apple-system,sans-serif`;
 
   ctx.save();
@@ -278,7 +278,7 @@ function drawCaption(
   }
 
   const totalH = lines.length * lineH;
-  const baseY  = H / 2 - totalH / 2 + fontSize * 0.82;
+  const baseY  = H * 0.64 - totalH / 2 + fontSize * 0.82;
 
   lines.forEach((lineWords, li) => {
     const lineY = baseY + li * lineH;
@@ -305,7 +305,8 @@ interface LoadedClip { el: HTMLVideoElement; duration: number }
 async function loadClip(url: string, container: HTMLElement): Promise<HTMLVideoElement | null> {
   return new Promise((resolve) => {
     const vid = document.createElement("video");
-    vid.crossOrigin = "anonymous";
+    // Do NOT set crossOrigin — proxy URL is same-origin so no CORS needed.
+    // Setting crossOrigin="anonymous" with credentials:true on the server causes browsers to reject the response.
     vid.muted       = true;
     vid.playsInline = true;
     vid.preload     = "auto";
@@ -393,7 +394,10 @@ function drawFrame(
 ) {
   // ── 1. Background ──
   const clipEl = sequencer.getCurrentEl(sec);
-  const hasClip = clipEl !== null && clipEl.readyState >= 2 && !clipEl.paused && clipEl.videoWidth > 0;
+  // readyState >= 2 means the browser has data for the current frame — enough to draw.
+  // Do NOT check !paused: play() is async and the video may briefly report paused=true
+  // right after play() is called, causing frames to be skipped.
+  const hasClip = clipEl !== null && clipEl.readyState >= 2 && clipEl.videoWidth > 0;
 
   if (hasClip && clipEl) {
     // Draw stock footage full-cover

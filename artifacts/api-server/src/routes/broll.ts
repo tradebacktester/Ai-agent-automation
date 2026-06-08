@@ -83,7 +83,8 @@ router.get("/search", async (req, res) => {
 
     const clips = ((data.videos ?? []) as any[]).map((v) => {
       const files: any[] = v.video_files ?? [];
-      const portrait = files.find((f) => f.height > f.width && f.quality === "hd")
+      // Prefer SD portrait for faster loading; fallback to any portrait; fallback to SD
+      const portrait = files.find((f) => f.height > f.width && f.quality === "sd")
         ?? files.find((f) => f.height > f.width)
         ?? files.find((f) => f.quality === "sd")
         ?? files[0];
@@ -93,8 +94,8 @@ router.get("/search", async (req, res) => {
       return {
         id: v.id,
         url: rawUrl ? `/api/broll/proxy?url=${encodeURIComponent(rawUrl)}` : null,
-        width: portrait?.width ?? 1080,
-        height: portrait?.height ?? 1920,
+        width: portrait?.width ?? 540,
+        height: portrait?.height ?? 960,
         duration: v.duration ?? 10,
         thumbnail: v.image ?? null,
         query,
@@ -108,34 +109,74 @@ router.get("/search", async (req, res) => {
   }
 });
 
+// Streaming proxy with Range support — lets browser buffer video progressively
 router.get("/proxy", async (req, res) => {
   const { url } = req.query as { url?: string };
   if (!url) { res.status(400).end(); return; }
 
   try {
     const decoded = decodeURIComponent(url);
-    const upstream = await fetch(decoded, {
-      headers: { "User-Agent": "Mozilla/5.0" },
-    });
 
-    if (!upstream.ok) {
+    // Forward Range header so browser can seek/buffer video
+    const upstreamHeaders: Record<string, string> = {
+      "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 Chrome/120.0 Safari/537.36",
+      "Referer": "https://www.pexels.com/",
+      "Accept": "video/webm,video/mp4,video/*;q=0.9,*/*;q=0.8",
+    };
+
+    const rangeHeader = req.headers["range"];
+    if (rangeHeader) upstreamHeaders["Range"] = rangeHeader;
+
+    const upstream = await fetch(decoded, { headers: upstreamHeaders });
+
+    if (!upstream.ok && upstream.status !== 206) {
+      console.error(`Proxy upstream error ${upstream.status} for ${decoded}`);
       res.status(upstream.status).end();
       return;
     }
 
     const ct = upstream.headers.get("content-type") ?? "video/mp4";
     const cl = upstream.headers.get("content-length");
+    const cr = upstream.headers.get("content-range");
+    const acceptRanges = upstream.headers.get("accept-ranges") ?? "bytes";
 
     res.setHeader("Content-Type", ct);
     res.setHeader("Access-Control-Allow-Origin", "*");
+    res.setHeader("Access-Control-Allow-Headers", "Range");
+    res.setHeader("Access-Control-Expose-Headers", "Content-Length, Content-Range, Accept-Ranges");
+    res.setHeader("Accept-Ranges", acceptRanges);
     res.setHeader("Cache-Control", "public, max-age=3600");
     if (cl) res.setHeader("Content-Length", cl);
+    if (cr) res.setHeader("Content-Range", cr);
 
-    const buf = await upstream.arrayBuffer();
-    res.send(Buffer.from(buf));
+    res.status(upstream.status);
+
+    if (!upstream.body) { res.end(); return; }
+
+    // Stream the response chunk by chunk — browser can start playing immediately
+    const reader = upstream.body.getReader();
+
+    const pump = async () => {
+      try {
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) { res.end(); return; }
+          const canContinue = res.write(Buffer.from(value));
+          if (!canContinue) {
+            await new Promise<void>((resolve) => res.once("drain", resolve));
+          }
+        }
+      } catch {
+        if (!res.headersSent) res.status(500).end();
+        else res.end();
+      }
+    };
+
+    req.on("close", () => reader.cancel().catch(() => {}));
+    pump();
   } catch (err) {
     console.error("Broll proxy error:", err);
-    res.status(500).end();
+    if (!res.headersSent) res.status(500).end();
   }
 });
 

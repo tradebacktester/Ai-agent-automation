@@ -39,26 +39,25 @@ function easeInOut(t: number) {
   return t < 0.5 ? 2 * t * t : -1 + (4 - 2 * t) * t;
 }
 
-// ─── Particle System ─────────────────────────────────────────────────────────
-interface Particle { x: number; y: number; r: number; vx: number; vy: number; va: number; alpha: number; color: string; type: string; }
+// ─── Particles ───────────────────────────────────────────────────────────────
+interface Particle { x: number; y: number; r: number; vx: number; vy: number; va: number; alpha: number; color: string; }
 
-const STYLE_PARTICLES: Record<string, { colors: string[]; type: string }> = {
-  dark_motivation: { colors: ["#FF2222","#FF6600","#FF4444","#CC0000","#FF8800"], type: "spark" },
-  luxury_cinematic: { colors: ["#FFD700","#FFC200","#FFE066","#B8960C","#FFFACD"], type: "orb" },
-  documentary:      { colors: ["#D4A574","#C8956A","#E8C9A0","#A0784A","#F0D8B4"], type: "dust" },
-  anime_edit:       { colors: ["#00FFFF","#8800FF","#FF00FF","#0088FF","#FFFFFF"], type: "energy" },
+const STYLE_COLORS: Record<string, string[]> = {
+  dark_motivation: ["#FF2222","#FF6600","#FF4444","#CC0000","#FF8800"],
+  luxury_cinematic: ["#FFD700","#FFC200","#FFE066","#B8960C","#FFFACD"],
+  documentary:      ["#D4A574","#C8956A","#E8C9A0","#A0784A","#F0D8B4"],
+  anime_edit:       ["#00FFFF","#8800FF","#FF00FF","#0088FF","#FFFFFF"],
 };
 
 function spawnParticles(style: string, count: number): Particle[] {
-  const cfg = STYLE_PARTICLES[style] ?? STYLE_PARTICLES["dark_motivation"];
+  const colors = STYLE_COLORS[style] ?? STYLE_COLORS["dark_motivation"];
   return Array.from({ length: count }, () => ({
     x: Math.random() * W, y: H + Math.random() * H,
     r: Math.random() * 2.5 + 0.5,
     vx: (Math.random() - 0.5) * 1.2, vy: -(Math.random() * 3 + 1),
     va: (Math.random() - 0.5) * 0.02,
     alpha: Math.random() * 0.7 + 0.3,
-    color: cfg.colors[Math.floor(Math.random() * cfg.colors.length)],
-    type: cfg.type,
+    color: colors[Math.floor(Math.random() * colors.length)],
   }));
 }
 
@@ -73,160 +72,128 @@ function drawParticles(ctx: CanvasRenderingContext2D, ps: Particle[]) {
   for (const p of ps) {
     ctx.save();
     ctx.globalAlpha = Math.min(Math.max(p.alpha, 0), 1);
-    if (p.type === "orb") {
-      const g = ctx.createRadialGradient(p.x, p.y, 0, p.x, p.y, p.r * 4);
-      g.addColorStop(0, p.color); g.addColorStop(1, "rgba(0,0,0,0)");
-      ctx.fillStyle = g;
-      ctx.beginPath(); ctx.arc(p.x, p.y, p.r * 4, 0, Math.PI * 2); ctx.fill();
-    } else if (p.type === "energy") {
-      ctx.shadowColor = p.color; ctx.shadowBlur = 8;
-      ctx.fillStyle = p.color;
-      ctx.beginPath(); ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2); ctx.fill();
-    } else {
-      ctx.fillStyle = p.color;
-      ctx.beginPath(); ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2); ctx.fill();
-    }
+    ctx.fillStyle = p.color;
+    ctx.beginPath(); ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2); ctx.fill();
     ctx.restore();
   }
 }
 
-// ─── Animated Backgrounds ────────────────────────────────────────────────────
+// ─── Backgrounds ─────────────────────────────────────────────────────────────
 function drawAnimatedBg(ctx: CanvasRenderingContext2D, sec: number, style: string) {
   switch (style) {
     case "luxury_cinematic": {
       const bg = ctx.createLinearGradient(0, 0, W, H);
       bg.addColorStop(0, "#030510"); bg.addColorStop(0.5, "#06071A"); bg.addColorStop(1, "#020308");
       ctx.fillStyle = bg; ctx.fillRect(0, 0, W, H);
-      const sweep = (sec * 0.04) % 1;
-      const g = ctx.createLinearGradient(W * sweep - W * 0.3, 0, W * sweep + W * 0.3, H * 0.3);
-      g.addColorStop(0, "rgba(0,0,0,0)"); g.addColorStop(0.5, "rgba(200,160,0,0.09)"); g.addColorStop(1, "rgba(0,0,0,0)");
-      ctx.fillStyle = g; ctx.fillRect(0, 0, W, H);
       break;
     }
     case "documentary": {
-      const bg = ctx.createLinearGradient(0, 0, 0, H);
-      bg.addColorStop(0, "#0D0A08"); bg.addColorStop(0.5, "#13100C"); bg.addColorStop(1, "#0A0806");
-      ctx.fillStyle = bg; ctx.fillRect(0, 0, W, H);
+      ctx.fillStyle = "#0D0A08"; ctx.fillRect(0, 0, W, H);
       break;
     }
     case "anime_edit": {
       ctx.fillStyle = "#000000"; ctx.fillRect(0, 0, W, H);
-      const cx = W / 2, cy = H * 0.4;
-      for (let i = 0; i < 24; i++) {
-        const angle = (i / 24) * Math.PI * 2 + sec * 0.1;
-        const spread = 0.04;
+      for (let i = 0; i < 12; i++) {
+        const a = (i / 12) * Math.PI * 2 + sec * 0.1;
         ctx.beginPath();
-        ctx.moveTo(cx + Math.cos(angle - spread) * 40, cy + Math.sin(angle - spread) * 40);
-        ctx.lineTo(cx + Math.cos(angle) * W, cy + Math.sin(angle) * W * 2);
-        ctx.lineTo(cx + Math.cos(angle + spread) * 40, cy + Math.sin(angle + spread) * 40);
+        ctx.moveTo(W/2 + Math.cos(a - 0.04) * 40, H*0.4 + Math.sin(a - 0.04) * 40);
+        ctx.lineTo(W/2 + Math.cos(a) * W, H*0.4 + Math.sin(a) * W * 2);
+        ctx.lineTo(W/2 + Math.cos(a + 0.04) * 40, H*0.4 + Math.sin(a + 0.04) * 40);
         ctx.closePath();
-        ctx.fillStyle = i % 3 === 0 ? `rgba(0,200,255,0.03)` : `rgba(150,0,255,0.03)`;
+        ctx.fillStyle = i % 2 === 0 ? "rgba(0,200,255,0.03)" : "rgba(150,0,255,0.03)";
         ctx.fill();
       }
       break;
     }
     default: {
       const bg = ctx.createLinearGradient(0, 0, 0, H);
-      bg.addColorStop(0, "#000000"); bg.addColorStop(0.4, "#0A0000"); bg.addColorStop(1, "#000000");
+      bg.addColorStop(0, "#000000"); bg.addColorStop(0.5, "#080000"); bg.addColorStop(1, "#000000");
       ctx.fillStyle = bg; ctx.fillRect(0, 0, W, H);
       const pulse = 0.5 + Math.sin(sec * 1.5) * 0.15;
-      const glow = ctx.createRadialGradient(W / 2, H * 0.45, 0, W / 2, H * 0.45, W * 0.7 * pulse);
-      glow.addColorStop(0, "rgba(180,20,20,0.18)"); glow.addColorStop(1, "rgba(0,0,0,0)");
+      const glow = ctx.createRadialGradient(W/2, H*0.4, 0, W/2, H*0.4, W * 0.7 * pulse);
+      glow.addColorStop(0, "rgba(160,15,15,0.22)"); glow.addColorStop(1, "rgba(0,0,0,0)");
       ctx.fillStyle = glow; ctx.fillRect(0, 0, W, H);
     }
   }
 }
 
-// ─── Overlays ────────────────────────────────────────────────────────────────
+// Cached vignette — created once per video session (same canvas context)
+let _vigCtx: CanvasRenderingContext2D | null = null;
+let _vigGrad: CanvasGradient | null = null;
 function drawVignette(ctx: CanvasRenderingContext2D) {
-  const vig = ctx.createRadialGradient(W / 2, H / 2, H * 0.18, W / 2, H / 2, H * 0.85);
-  vig.addColorStop(0, "rgba(0,0,0,0)");
-  vig.addColorStop(0.6, "rgba(0,0,0,0.25)");
-  vig.addColorStop(1, "rgba(0,0,0,0.88)");
-  ctx.fillStyle = vig; ctx.fillRect(0, 0, W, H);
-}
-
-function drawFilmGrain(ctx: CanvasRenderingContext2D, sec: number, strength: number) {
-  const imgData = ctx.createImageData(W, H);
-  const seed = Math.floor(sec * 60);
-  for (let i = 0; i < imgData.data.length; i += 4) {
-    const n = ((i * 1103515245 + seed * 12345) & 0x7fffffff) % 255;
-    const v = n * strength;
-    imgData.data[i] = v; imgData.data[i + 1] = v; imgData.data[i + 2] = v; imgData.data[i + 3] = 20;
+  if (ctx !== _vigCtx || !_vigGrad) {
+    _vigCtx = ctx;
+    _vigGrad = ctx.createRadialGradient(W/2, H/2, H*0.18, W/2, H/2, H*0.86);
+    _vigGrad.addColorStop(0, "rgba(0,0,0,0)");
+    _vigGrad.addColorStop(0.55, "rgba(0,0,0,0.22)");
+    _vigGrad.addColorStop(1, "rgba(0,0,0,0.88)");
   }
-  ctx.putImageData(imgData, 0, 0);
+  ctx.fillStyle = _vigGrad;
+  ctx.fillRect(0, 0, W, H);
 }
 
-// ─── Script Parsing ───────────────────────────────────────────────────────────
+// ─── Script parsing ───────────────────────────────────────────────────────────
 function buildScript(script: VideoScript) {
   const split = (text: string, n: number) => {
     const words = text.replace(/\s+/g, " ").trim().split(" ").filter(Boolean);
-    const phrases: string[] = [];
-    for (let i = 0; i < words.length; i += n) phrases.push(words.slice(i, i + n).join(" "));
-    return phrases;
+    const out: string[] = [];
+    for (let i = 0; i < words.length; i += n) out.push(words.slice(i, i + n).join(" "));
+    return out;
   };
-  const hookPhrases = split(script.hook, 3);
-  const bodyPhrases = split(script.body, 3);
-  const ctaPhrases  = split(script.cta, 3);
-  return { phrases: [...hookPhrases, ...bodyPhrases, ...ctaPhrases], hookEnd: hookPhrases.length, bodyEnd: hookPhrases.length + bodyPhrases.length };
+  const h = split(script.hook, 3), b = split(script.body, 3), c = split(script.cta, 3);
+  return { phrases: [...h, ...b, ...c], hookEnd: h.length, bodyEnd: h.length + b.length };
 }
 
-// ─── Karaoke Captions (viral word-by-word style) ──────────────────────────────
-const ACCENT_COLORS: Record<string, string> = {
+// ─── Karaoke captions ─────────────────────────────────────────────────────────
+const ACCENT: Record<string, string> = {
   dark_motivation: "#FF3333",
   luxury_cinematic: "#FFD700",
   documentary: "#F5DEB3",
   anime_edit: "#00FFFF",
 };
 
-function drawKaraokeCaption(
-  ctx: CanvasRenderingContext2D,
-  phrase: PhraseTimestamp,
-  sec: number,
-  style: string,
-) {
-  const phraseAge = sec - phrase.startSec;
-  if (phraseAge < 0) return;
-  const appear = easeOut(Math.min(phraseAge * 8, 1));
+function drawKaraoke(ctx: CanvasRenderingContext2D, pt: PhraseTimestamp, sec: number, style: string) {
+  const age = sec - pt.startSec;
+  if (age < 0) return;
+  const appear = easeOut(Math.min(age * 8, 1));
   if (appear < 0.02) return;
 
-  const accent    = ACCENT_COLORS[style] ?? "#FF3333";
-  const fontSize  = phrase.isHook ? 62 : phrase.isCTA ? 48 : 54;
-  const fontStr   = `900 italic ${fontSize}px system-ui,-apple-system,sans-serif`;
-
+  const accent = ACCENT[style] ?? "#FF3333";
+  const fs = pt.isHook ? 60 : pt.isCTA ? 46 : 52;
   ctx.save();
-  ctx.font = fontStr;
   ctx.globalAlpha = appear;
+  ctx.font = `900 ${fs}px system-ui,-apple-system,sans-serif`;
+  ctx.textAlign = "left";
 
-  // Build word list with timestamps
-  const rawWords = phrase.words
-    ?? phrase.phrase.split(" ").filter(Boolean).map((w, i, arr) => {
-        const dur = (phrase.endSec - phrase.startSec) / arr.length;
-        return { word: w, startSec: phrase.startSec + i * dur, endSec: phrase.startSec + (i + 1) * dur };
+  // Build word list with fallback timing if words[] not provided
+  const rawWords: WordTimestamp[] = pt.words?.length
+    ? pt.words
+    : pt.phrase.split(" ").filter(Boolean).map((w, i, arr) => {
+        const dur = (pt.endSec - pt.startSec) / arr.length;
+        return { word: w, startSec: pt.startSec + i * dur, endSec: pt.startSec + (i + 1) * dur };
       });
 
-  const maxW  = W - 72;
-  const lineH = fontSize * 1.38;
-
-  // Word-wrap into lines
-  const lines: typeof rawWords[0][][] = [[]];
-  let lineWidth = 0;
-  for (const w of rawWords) {
-    const ww = ctx.measureText(w.word + " ").width;
-    if (lineWidth + ww > maxW && lines[lines.length - 1].length > 0) {
-      lines.push([w]); lineWidth = ww;
+  // Word-wrap
+  const maxW = W - 64;
+  const lh = fs * 1.4;
+  const lines: WordTimestamp[][] = [[]];
+  let lw = 0;
+  for (const wt of rawWords) {
+    const ww = ctx.measureText(wt.word + " ").width;
+    if (lw + ww > maxW && lines[lines.length - 1].length > 0) {
+      lines.push([wt]); lw = ww;
     } else {
-      lines[lines.length - 1].push(w); lineWidth += ww;
+      lines[lines.length - 1].push(wt); lw += ww;
     }
   }
 
-  const totalTextH = lines.length * lineH;
-  const baseY = H * 0.63 - totalTextH / 2;
+  const totalH = lines.length * lh;
+  const baseY = H * 0.63 - totalH / 2;
 
   lines.forEach((line, li) => {
-    const lw = line.reduce((s, w) => s + ctx.measureText(w.word + " ").width, 0);
-    let x = (W - lw) / 2;
-    const y = baseY + li * lineH + fontSize;
+    const lineW = line.reduce((s, wt) => s + ctx.measureText(wt.word + " ").width, 0);
+    let x = (W - lineW) / 2;
+    const y = baseY + li * lh + fs;
 
     line.forEach((wt) => {
       const ww = ctx.measureText(wt.word + " ").width;
@@ -234,90 +201,68 @@ function drawKaraokeCaption(
       const isPast   = sec >= wt.endSec;
 
       if (isActive) {
-        const t  = (sec - wt.startSec) / Math.max(wt.endSec - wt.startSec, 0.001);
-        const pop = 1 + Math.sin(t * Math.PI) * 0.12;
+        const t = (sec - wt.startSec) / Math.max(wt.endSec - wt.startSec, 0.001);
+        const pop = 1 + Math.sin(t * Math.PI) * 0.1;
         ctx.save();
-        ctx.translate(x + ww / 2, y);
-        ctx.scale(pop, pop);
-        ctx.translate(-(x + ww / 2), -y);
-        // Bold stroke for legibility over footage
-        ctx.strokeStyle  = "rgba(0,0,0,0.95)";
-        ctx.lineWidth    = 10;
-        ctx.lineJoin     = "round";
+        ctx.translate(x + ww / 2, y); ctx.scale(pop, pop); ctx.translate(-(x + ww / 2), -y);
+        ctx.shadowColor = accent; ctx.shadowBlur = 20;
+        ctx.strokeStyle = "rgba(0,0,0,0.9)"; ctx.lineWidth = 9; ctx.lineJoin = "round";
         ctx.strokeText(wt.word, x, y);
-        ctx.shadowColor  = accent;
-        ctx.shadowBlur   = 28;
-        ctx.fillStyle    = accent;
-        ctx.fillText(wt.word, x, y);
+        ctx.fillStyle = accent; ctx.fillText(wt.word, x, y);
         ctx.restore();
       } else if (isPast) {
-        ctx.strokeStyle = "rgba(0,0,0,0.85)";
-        ctx.lineWidth   = 8;
-        ctx.lineJoin    = "round";
+        ctx.shadowColor = "rgba(0,0,0,0.8)"; ctx.shadowBlur = 10;
+        ctx.strokeStyle = "rgba(0,0,0,0.75)"; ctx.lineWidth = 7; ctx.lineJoin = "round";
         ctx.strokeText(wt.word, x, y);
-        ctx.shadowColor = "rgba(0,0,0,0.7)";
-        ctx.shadowBlur  = 12;
-        ctx.fillStyle   = "#FFFFFF";
-        ctx.fillText(wt.word, x, y);
+        ctx.fillStyle = "#FFFFFF"; ctx.fillText(wt.word, x, y);
       } else {
-        const prevAlpha = ctx.globalAlpha;
-        ctx.globalAlpha = appear * 0.35;
-        ctx.fillStyle = "#AAAAAA";
-        ctx.fillText(wt.word, x, y);
-        ctx.globalAlpha = prevAlpha;
+        ctx.save();
+        ctx.globalAlpha = appear * 0.3;
+        ctx.fillStyle = "#BBBBBB"; ctx.fillText(wt.word, x, y);
+        ctx.restore();
       }
       x += ww;
     });
   });
-
   ctx.restore();
 }
 
-// ─── Clip Loading: fetch → blob URL (bypasses all canvas security checks) ────
+// ─── Clip loading — fetch → blob URL (origin-safe for canvas) ────────────────
 interface LoadedClip { el: HTMLVideoElement; duration: number; blobUrl: string; }
 
-async function loadClip(
-  url: string,
-  container: HTMLElement,
-  onProgress?: (msg: string) => void,
-): Promise<LoadedClip | null> {
+async function loadClip(url: string, container: HTMLElement): Promise<LoadedClip | null> {
   try {
-    onProgress?.(`Fetching clip…`);
     const res = await fetch(url);
-    if (!res.ok) { console.warn("Clip fetch failed:", res.status, url); return null; }
-
+    if (!res.ok) { console.warn("Clip fetch failed:", res.status); return null; }
     const blob    = await res.blob();
     const blobUrl = URL.createObjectURL(blob);
-    onProgress?.("Clip fetched, loading into video element…");
 
     return new Promise((resolve) => {
       const vid = document.createElement("video");
-      vid.muted        = true;
-      vid.playsInline  = true;
-      vid.preload      = "auto";
-      vid.loop         = true;
-      vid.style.cssText = "position:absolute;width:1px;height:1px;opacity:0;pointer-events:none;";
+      vid.muted       = true;
+      vid.playsInline = true;
+      vid.preload     = "auto";
+      vid.loop        = true;
+      // Use real dimensions — Chrome skips full-res decoding for 1×1px elements
+      vid.style.cssText = "position:absolute;left:0;top:0;width:540px;height:960px;pointer-events:none;";
       container.appendChild(vid);
 
       let done = false;
       const finish = (ok: boolean) => {
-        if (done) return;
-        done = true;
+        if (done) return; done = true;
         clearTimeout(timer);
         if (ok) {
-          resolve({ el: vid, duration: vid.duration > 0 ? Math.min(vid.duration, 14) : 10, blobUrl });
+          resolve({ el: vid, duration: Math.min(isFinite(vid.duration) ? vid.duration : 10, 14), blobUrl });
         } else {
           URL.revokeObjectURL(blobUrl);
-          container.removeChild(vid);
+          try { container.removeChild(vid); } catch {}
           resolve(null);
         }
       };
 
-      const timer = setTimeout(() => { console.warn("Clip element timeout"); finish(false); }, 20000);
-
-      vid.addEventListener("canplay",  () => finish(true), { once: true });
-      vid.addEventListener("error",    (e) => { console.error("Video element error:", e); finish(false); }, { once: true });
-
+      const timer = setTimeout(() => { console.warn("Clip load timeout"); finish(false); }, 20000);
+      vid.addEventListener("loadeddata", () => finish(true), { once: true });
+      vid.addEventListener("error",      () => finish(false), { once: true });
       vid.src = blobUrl;
       vid.load();
     });
@@ -327,7 +272,7 @@ async function loadClip(
   }
 }
 
-// ─── Clip Sequencer ───────────────────────────────────────────────────────────
+// ─── Sequencer — all clips loop; draw whichever matches elapsed time ──────────
 interface Sequencer { getCurrentEl(sec: number): HTMLVideoElement | null; }
 
 function buildSequencer(clips: LoadedClip[]): Sequencer {
@@ -339,25 +284,24 @@ function buildSequencer(clips: LoadedClip[]): Sequencer {
     t += duration;
     return w;
   });
-  const totalDuration = t;
+  const total = t;
 
-  // All clips play simultaneously in a loop — just draw whichever is current
+  // Start all clips playing now (muted, looping)
   for (const { el } of clips) {
-    el.play().catch((e) => console.warn("Clip play failed:", e));
+    el.play().catch((e) => console.warn("Clip play:", e));
   }
 
   return {
-    getCurrentEl(sec: number): HTMLVideoElement | null {
-      if (!windows.length) return null;
-      const looped = totalDuration > 0 ? sec % totalDuration : 0;
+    getCurrentEl(sec: number) {
+      if (!total) return null;
+      const looped = sec % total;
       return windows.find(w => looped >= w.start && looped < w.end)?.el
-        ?? windows[windows.length - 1].el
-        ?? null;
+        ?? windows[windows.length - 1].el;
     },
   };
 }
 
-// ─── Frame Renderer ───────────────────────────────────────────────────────────
+// ─── Frame draw ───────────────────────────────────────────────────────────────
 function drawFrame(
   ctx: CanvasRenderingContext2D,
   sec: number,
@@ -367,26 +311,24 @@ function drawFrame(
   script: VideoScript,
   style: string,
   scriptData: ReturnType<typeof buildScript>,
-  totalSeconds: number,
+  totalSec: number,
   phraseTimestamps?: PhraseTimestamp[],
 ) {
-  // ── 1. Background ──
+  // 1. Background: real footage or animated fallback
   const clipEl = sequencer.getCurrentEl(sec);
   let clipDrawn = false;
 
   if (clipEl && clipEl.videoWidth > 0 && clipEl.videoHeight > 0) {
     try {
-      const vw = clipEl.videoWidth;
-      const vh = clipEl.videoHeight;
-      // Ken Burns: gentle zoom 1.0→1.07 over 12s cycles
-      const zoom  = 1.0 + ((sec % 12) / 12) * 0.07;
-      const scale = Math.max(W / vw, H / vh) * zoom;
-      const sw = vw * scale;
-      const sh = vh * scale;
+      // Ken Burns: gentle 1.0→1.06 zoom per 12-second cycle
+      const zoom  = 1.0 + ((sec % 12) / 12) * 0.06;
+      const scale = Math.max(W / clipEl.videoWidth, H / clipEl.videoHeight) * zoom;
+      const sw = clipEl.videoWidth  * scale;
+      const sh = clipEl.videoHeight * scale;
       ctx.drawImage(clipEl, (W - sw) / 2, (H - sh) / 2, sw, sh);
       clipDrawn = true;
     } catch (e) {
-      console.warn("ctx.drawImage failed:", e);
+      console.warn("drawImage failed:", e);
     }
   }
 
@@ -396,85 +338,72 @@ function drawFrame(
     drawParticles(ctx, particles);
   }
 
-  // ── 2. Cinematic grade over footage ──
+  // 2. Cinematic darkening over footage
   if (clipDrawn) {
-    const grades: Record<string, string> = {
-      dark_motivation:  "rgba(0,0,0,0.52)",
-      luxury_cinematic: "rgba(5,3,15,0.44)",
-      documentary:      "rgba(12,7,2,0.32)",
-      anime_edit:       "rgba(0,0,18,0.48)",
+    const overlays: Record<string, string> = {
+      dark_motivation:  "rgba(0,0,0,0.42)",
+      luxury_cinematic: "rgba(5,3,15,0.38)",
+      documentary:      "rgba(10,5,2,0.28)",
+      anime_edit:       "rgba(0,0,16,0.44)",
     };
-    ctx.fillStyle = grades[style] ?? "rgba(0,0,0,0.50)";
+    ctx.fillStyle = overlays[style] ?? "rgba(0,0,0,0.40)";
     ctx.fillRect(0, 0, W, H);
   }
 
-  // ── 3. Vignette ──
+  // 3. Vignette (cached gradient)
   drawVignette(ctx);
 
-  // ── 4. Film grain ──
-  if (style === "documentary" || style === "dark_motivation") {
-    drawFilmGrain(ctx, sec, style === "documentary" ? 0.062 : 0.04);
-  }
-
-  // ── 5. Karaoke captions ──
-  if (phraseTimestamps && phraseTimestamps.length > 0) {
-    const current = phraseTimestamps.find(pt => sec >= pt.startSec && sec < pt.endSec + 0.08);
-    if (current) drawKaraokeCaption(ctx, current, sec, style);
+  // 4. Karaoke captions
+  if (phraseTimestamps?.length) {
+    const current = phraseTimestamps.find(pt => sec >= pt.startSec && sec < pt.endSec + 0.1);
+    if (current) drawKaraoke(ctx, current, sec, style);
   } else {
     const { phrases, hookEnd, bodyEnd } = scriptData;
-    if (phrases.length > 0 && sec < totalSeconds * 0.92) {
-      const phrasesSec  = totalSeconds * 0.92;
-      const phaseDur    = phrasesSec / phrases.length;
-      const idx         = Math.min(Math.floor(sec / phaseDur), phrases.length - 1);
-      const phraseStart = idx * phaseDur;
-      const fakePt: PhraseTimestamp = {
+    if (phrases.length > 0 && sec < totalSec * 0.92) {
+      const pDur = (totalSec * 0.92) / phrases.length;
+      const idx  = Math.min(Math.floor(sec / pDur), phrases.length - 1);
+      drawKaraoke(ctx, {
         phrase: phrases[idx],
-        startSec: phraseStart,
-        endSec: phraseStart + phaseDur,
+        startSec: idx * pDur,
+        endSec: (idx + 1) * pDur,
         isHook: idx < hookEnd,
         isCTA: idx >= bodyEnd,
-      };
-      drawKaraokeCaption(ctx, fakePt, sec, style);
+      }, sec, style);
     }
   }
 
-  // ── 6. Lower-third title bar ──
+  // 5. Lower-third
   ctx.save();
   ctx.fillStyle = "rgba(0,0,0,0.65)";
-  ctx.fillRect(0, H - 62, W, 62);
-  ctx.globalAlpha = 0.95;
+  ctx.fillRect(0, H - 60, W, 60);
   ctx.font = "700 17px system-ui,sans-serif";
   ctx.textAlign = "center";
   ctx.fillStyle = "#FFFFFF";
-  ctx.shadowColor = "rgba(0,0,0,0.9)";
-  ctx.shadowBlur = 10;
-  ctx.fillText(script.title.toUpperCase().slice(0, 34), W / 2, H - 22);
+  ctx.shadowColor = "rgba(0,0,0,0.9)"; ctx.shadowBlur = 8;
+  ctx.fillText(script.title.toUpperCase().slice(0, 34), W / 2, H - 21);
   ctx.restore();
 
-  // ── 7. Watermark ──
+  // 6. Watermark
   ctx.save();
   ctx.font = "bold 13px system-ui,sans-serif";
   ctx.fillStyle = "rgba(255,255,255,0.11)";
   ctx.textAlign = "right";
-  ctx.fillText("VIRALOS AI", W - 16, 28);
+  ctx.fillText("VIRALOS AI", W - 16, 26);
   ctx.restore();
 
-  // ── 8. Section flash ──
-  for (const moment of [totalSeconds * 0.15, totalSeconds * 0.82]) {
+  // 7. Section flash
+  for (const moment of [totalSec * 0.15, totalSec * 0.82]) {
     const dist = Math.abs(sec - moment);
     if (dist < 0.18) {
-      ctx.save();
-      ctx.globalAlpha = (1 - dist / 0.18) * 0.32;
-      ctx.fillStyle = "#FFFFFF";
-      ctx.fillRect(0, 0, W, H);
-      ctx.restore();
+      ctx.save(); ctx.globalAlpha = (1 - dist / 0.18) * 0.28;
+      ctx.fillStyle = "#FFFFFF"; ctx.fillRect(0, 0, W, H); ctx.restore();
     }
   }
 }
 
-// ─── Recorder Helper ─────────────────────────────────────────────────────────
+// ─── Recorder ────────────────────────────────────────────────────────────────
 function buildRecorder(stream: MediaStream): MediaRecorder | null {
-  const types = ["video/webm;codecs=vp9", "video/webm;codecs=vp8", "video/webm", "video/mp4"];
+  const types = ["video/webm;codecs=vp9","video/webm;codecs=vp8","video/webm","video/mp4"];
   for (const t of types) {
     if (MediaRecorder.isTypeSupported(t)) {
       try { return new MediaRecorder(stream, { mimeType: t, videoBitsPerSecond: 6_000_000 }); } catch {}
@@ -483,7 +412,7 @@ function buildRecorder(stream: MediaStream): MediaRecorder | null {
   try { return new MediaRecorder(stream); } catch { return null; }
 }
 
-// ─── Main Export ──────────────────────────────────────────────────────────────
+// ─── Main entry point ─────────────────────────────────────────────────────────
 export async function generateVideo(
   script: VideoScript,
   onProgress?: (pct: number) => void,
@@ -493,122 +422,127 @@ export async function generateVideo(
 ): Promise<Blob> {
   const style      = script.videoStyle ?? "dark_motivation";
   const scriptData = buildScript(script);
-  const particles  = spawnParticles(style, 120);
+  const particles  = spawnParticles(style, 100);
 
-  // ── DOM container for video elements (required by Chrome for playback) ──
+  // ── Step 1: Create & resume AudioContext NOW (synchronous, before any await)
+  // Chrome's user activation expires after async operations. Creating the
+  // AudioContext first ensures it's not left in "suspended" state.
+  let audioCtx: AudioContext | null = null;
+  if (audioBlob) {
+    try {
+      audioCtx = new AudioContext();
+      // resume() is synchronous in Chrome when called within user activation
+      audioCtx.resume().catch(() => {});
+    } catch (e) {
+      console.warn("AudioContext pre-creation failed:", e);
+    }
+  }
+
+  // ── Step 2: DOM container — use real pixel dimensions (540×960)
+  // Chrome skips full-res frame decoding for elements with tiny CSS size.
+  // Positioning off-screen at left:-3000px keeps it invisible.
   const clipContainer = document.createElement("div");
-  clipContainer.style.cssText = "position:fixed;left:-9999px;top:-9999px;width:1px;height:1px;overflow:hidden;pointer-events:none;";
+  clipContainer.style.cssText =
+    "position:fixed;left:-3000px;top:0;width:540px;height:960px;overflow:hidden;pointer-events:none;";
   document.body.appendChild(clipContainer);
 
-  const revokeAll = (clips: LoadedClip[]) => {
-    for (const c of clips) {
-      try { URL.revokeObjectURL(c.blobUrl); } catch {}
-    }
-  };
   const cleanup = (clips: LoadedClip[]) => {
-    revokeAll(clips);
+    for (const c of clips) { try { URL.revokeObjectURL(c.blobUrl); } catch {} }
     try { document.body.removeChild(clipContainer); } catch {}
+    // Reset vignette cache for next video
+    _vigCtx = null; _vigGrad = null;
   };
 
-  // ── Load all clips as blob URLs in parallel ──
-  // This is the definitive fix: blob:// URLs are always origin-safe for canvas.
+  // ── Step 3: Load all clips as blobs (bypasses canvas CORS checks)
   const loadedClips: LoadedClip[] = [];
-  if (brollClips && brollClips.length > 0) {
+  if (brollClips?.length) {
     onProgress?.(-1);
-    const results = await Promise.all(
-      brollClips.map((clip) => loadClip(clip.url, clipContainer)),
-    );
+    const results = await Promise.all(brollClips.map(c => loadClip(c.url, clipContainer)));
     for (const r of results) { if (r) loadedClips.push(r); }
-    console.log(`Loaded ${loadedClips.length}/${brollClips.length} clips`);
+    console.log(`[VIRALOS] Loaded ${loadedClips.length}/${brollClips.length} clips`);
   }
 
   const sequencer = buildSequencer(loadedClips);
 
+  // ── Step 4: Canvas + MediaRecorder
   return new Promise(async (resolve, reject) => {
     const canvas  = document.createElement("canvas");
-    canvas.width  = W;
-    canvas.height = H;
+    canvas.width  = W; canvas.height = H;
     const ctx = canvas.getContext("2d");
-    if (!ctx) { cleanup(loadedClips); reject(new Error("Canvas unavailable")); return; }
+    if (!ctx) { cleanup(loadedClips); reject(new Error("Canvas 2D unavailable")); return; }
 
-    let totalSeconds = 45;
+    let totalSec = 45;
+    const ac = audioCtx; // captured from closure — already created and resumed
 
-    if (audioBlob) {
+    if (audioBlob && ac) {
       try {
-        const audioCtx    = new AudioContext();
-        const arrayBuf    = await audioBlob.arrayBuffer();
-        const audioBuf    = await audioCtx.decodeAudioData(arrayBuf);
-        totalSeconds      = Math.min(audioBuf.duration + 1.5, 120);
+        const arrayBuf = await audioBlob.arrayBuffer();
+        const audioBuf = await ac.decodeAudioData(arrayBuf);
+        totalSec = Math.min(audioBuf.duration + 1.5, 120);
 
-        const dest        = audioCtx.createMediaStreamDestination();
-        const audioSource = audioCtx.createBufferSource();
-        audioSource.buffer = audioBuf;
-        audioSource.connect(dest);
+        const dest   = ac.createMediaStreamDestination();
+        const source = ac.createBufferSource();
+        source.buffer = audioBuf;
+        source.connect(dest);
 
-        const canvasStream = canvas.captureStream(FPS);
-        for (const track of dest.stream.getAudioTracks()) canvasStream.addTrack(track);
+        const stream = canvas.captureStream(FPS);
+        for (const trk of dest.stream.getAudioTracks()) stream.addTrack(trk);
 
-        const recorder = buildRecorder(canvasStream);
-        if (!recorder) {
-          audioCtx.close();
-          cleanup(loadedClips);
-          reject(new Error("MediaRecorder unsupported"));
-          return;
-        }
+        const rec = buildRecorder(stream);
+        if (!rec) { ac.close(); cleanup(loadedClips); reject(new Error("MediaRecorder unavailable")); return; }
 
         const chunks: BlobPart[] = [];
-        recorder.ondataavailable = (e) => { if (e.data?.size > 0) chunks.push(e.data); };
-        recorder.onstop = () => {
-          audioCtx.close().catch(() => {});
+        rec.ondataavailable = (e) => { if (e.data?.size > 0) chunks.push(e.data); };
+        rec.onstop = () => {
+          ac.close().catch(() => {});
           cleanup(loadedClips);
-          resolve(new Blob(chunks, { type: recorder.mimeType }));
+          resolve(new Blob(chunks, { type: rec.mimeType }));
         };
-        recorder.onerror = (e) => { audioCtx.close().catch(() => {}); cleanup(loadedClips); reject(e); };
+        rec.onerror = (e) => { ac.close().catch(() => {}); cleanup(loadedClips); reject(e); };
 
-        recorder.start(200);
-        // t0 = audio context time at the exact moment audio starts — ground-truth clock
-        const t0 = audioCtx.currentTime;
-        audioSource.start(t0);
-        let lastSec = 0;
+        rec.start(200);
+        // t0 = audio clock at start — all timing derived from this
+        const t0 = ac.currentTime;
+        source.start(t0);
+        let prevSec = 0;
 
         const tick = () => {
-          const sec = audioCtx.currentTime - t0;
-          const dt  = Math.max(0, sec - lastSec);
-          lastSec   = sec;
-          if (sec >= totalSeconds) { recorder.stop(); onProgress?.(100); return; }
-          onProgress?.(Math.min(99, Math.round((sec / totalSeconds) * 100)));
-          drawFrame(ctx, sec, dt, particles, sequencer, script, style, scriptData, totalSeconds, phraseTimestamps);
+          const sec = ac.currentTime - t0;
+          const dt  = Math.max(0, sec - prevSec); prevSec = sec;
+          if (sec >= totalSec) { rec.stop(); onProgress?.(100); return; }
+          onProgress?.(Math.min(99, Math.round(sec / totalSec * 100)));
+          drawFrame(ctx, sec, dt, particles, sequencer, script, style, scriptData, totalSec, phraseTimestamps);
           requestAnimationFrame(tick);
         };
         requestAnimationFrame(tick);
         return;
       } catch (e) {
-        console.warn("Audio path failed, silent fallback:", e);
+        console.error("[VIRALOS] Audio pipeline error:", e);
+        ac.close().catch(() => {});
       }
     }
 
     // ── Silent fallback ──
-    const stream   = canvas.captureStream(FPS);
-    const recorder = buildRecorder(stream);
-    if (!recorder) { cleanup(loadedClips); reject(new Error("MediaRecorder unsupported")); return; }
+    const stream = canvas.captureStream(FPS);
+    const rec    = buildRecorder(stream);
+    if (!rec) { cleanup(loadedClips); reject(new Error("MediaRecorder unavailable")); return; }
 
     const chunks: BlobPart[] = [];
-    recorder.ondataavailable = (e) => { if (e.data?.size > 0) chunks.push(e.data); };
-    recorder.onstop = () => { cleanup(loadedClips); resolve(new Blob(chunks, { type: recorder.mimeType })); };
-    recorder.onerror = (e) => { cleanup(loadedClips); reject(e); };
+    rec.ondataavailable = (e) => { if (e.data?.size > 0) chunks.push(e.data); };
+    rec.onstop = () => { cleanup(loadedClips); resolve(new Blob(chunks, { type: rec.mimeType })); };
+    rec.onerror = (e) => { cleanup(loadedClips); reject(e); };
 
-    const silentSec = 45;
-    recorder.start(200);
+    const silentTotal = 45;
+    rec.start(200);
     const t0 = performance.now();
-    let lastSec = 0;
+    let prevSec = 0;
 
     const tick = () => {
       const sec = (performance.now() - t0) / 1000;
-      const dt  = Math.max(0, sec - lastSec);
-      lastSec   = sec;
-      if (sec >= silentSec) { recorder.stop(); onProgress?.(100); return; }
-      onProgress?.(Math.min(99, Math.round((sec / silentSec) * 100)));
-      drawFrame(ctx, sec, dt, particles, sequencer, script, style, scriptData, silentSec, phraseTimestamps);
+      const dt  = Math.max(0, sec - prevSec); prevSec = sec;
+      if (sec >= silentTotal) { rec.stop(); onProgress?.(100); return; }
+      onProgress?.(Math.min(99, Math.round(sec / silentTotal * 100)));
+      drawFrame(ctx, sec, dt, particles, sequencer, script, style, scriptData, silentTotal, phraseTimestamps);
       requestAnimationFrame(tick);
     };
     requestAnimationFrame(tick);

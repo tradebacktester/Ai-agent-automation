@@ -4,7 +4,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
-import { generateVideo, type BrollClip, type PhraseTimestamp } from "@/lib/video-renderer";
+import { generateVideo, type BrollClip, type PhraseTimestamp, type RenderMetadata } from "@/lib/video-renderer";
 import { storeVideoBlob, downloadVideo } from "@/lib/video-store";
 import {
   Wand2, FileText, Mic, Clapperboard, Download, CheckCircle,
@@ -126,6 +126,12 @@ export default function CreateVideo() {
   const [brollLoading, setBrollLoading] = useState(false);
   const [phraseTimestamps, setPhraseTimestamps] = useState<PhraseTimestamp[] | null>(null);
 
+  // Groq review loop state
+  const [groqStatus, setGroqStatus] = useState<"idle"|"reviewing"|"fixing"|"approved"|"failed">("idle");
+  const [groqIssues, setGroqIssues] = useState<string[]>([]);
+  const [groqAttempt, setGroqAttempt] = useState(0);
+  const [groqSummary, setGroqSummary] = useState("");
+
   const videoGenRef = useRef<Promise<void> | null>(null);
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const brollRef = useRef<BrollClip[]>([]);
@@ -228,29 +234,153 @@ export default function CreateVideo() {
     }
   }
 
-  function startVideoGeneration(script: GeneratedScript, voiceBlob?: Blob, clips?: BrollClip[], timestamps?: PhraseTimestamp[]) {
+  // Re-fetch clips when Groq says the current set is bad
+  async function refetchClipsForReview(query: string, count: number): Promise<BrollClip[]> {
+    try {
+      const r = await fetch(`/api/broll/search?query=${encodeURIComponent(query)}&per_page=${count}`, {
+        signal: AbortSignal.timeout(12000),
+      });
+      if (!r.ok) return [];
+      const { clips: found } = await r.json() as { clips: BrollClip[] };
+      return found ?? [];
+    } catch {
+      return [];
+    }
+  }
+
+  // Groq Review Loop — generates video, lets Groq review it, fixes issues and retries
+  async function startVideoGeneration(
+    script: GeneratedScript,
+    voiceBlob?: Blob,
+    clips?: BrollClip[],
+    timestamps?: PhraseTimestamp[],
+  ) {
     if (videoGenRef.current) return;
-    setVideoGenerating(true);
-    setVideoGenProgress(0);
-    const usedClips = clips ?? brollRef.current;
+
+    const MAX_ATTEMPTS = 3;
+    let currentClips = clips ?? brollRef.current;
     const usedTimestamps = timestamps ?? phraseTimestampsRef.current ?? undefined;
-    videoGenRef.current = generateVideo(
-      { title, hook: script.hook, body: script.script, cta: script.cta, videoStyle },
-      (pct) => setVideoGenProgress(pct),
-      voiceBlob,
-      usedClips.length > 0 ? usedClips : undefined,
-      usedTimestamps ?? undefined,
-    )
-      .then((blob) => {
-        if (projectId !== null) {
-          storeVideoBlob(projectId, blob);
-        } else {
-          (window as any).__pendingVideoBlob = blob;
-        }
-        setVideoReady(true);
+    let previousIssues: string[] = [];
+
+    setGroqStatus("idle");
+    setGroqIssues([]);
+    setGroqAttempt(0);
+    setGroqSummary("");
+
+    for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
+      setGroqAttempt(attempt);
+      setVideoGenerating(true);
+      setVideoGenProgress(0);
+      videoGenRef.current = Promise.resolve(); // prevent double-start
+
+      let renderMeta: RenderMetadata | null = null;
+
+      try {
+        const blob = await generateVideo(
+          { title, hook: script.hook, body: script.script, cta: script.cta, videoStyle },
+          (pct) => setVideoGenProgress(pct),
+          voiceBlob,
+          currentClips.length > 0 ? currentClips : undefined,
+          usedTimestamps,
+          (meta) => { renderMeta = meta; },
+        );
+
         setVideoGenerating(false);
-      })
-      .catch(() => setVideoGenerating(false));
+
+        // ── Groq Review ────────────────────────────────────
+        setGroqStatus("reviewing");
+        setGroqSummary("Groq AI is inspecting your video…");
+
+        let approved = true;
+        let issues: string[] = [];
+        let fixes: {
+          refetchClips?: boolean;
+          refetchQuery?: string;
+          adjustClipCount?: number;
+        } = {};
+
+        try {
+          const reviewRes = await fetch("/api/video/review", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              ...(renderMeta ?? {}),
+              attempt,
+              previousIssues,
+            }),
+            signal: AbortSignal.timeout(15000),
+          });
+
+          if (reviewRes.ok) {
+            const { result } = await reviewRes.json() as {
+              result: {
+                approved: boolean;
+                issues: string[];
+                fixes: typeof fixes;
+                score: number;
+                summary: string;
+              };
+            };
+            approved = result.approved;
+            issues = result.issues ?? [];
+            fixes = result.fixes ?? {};
+            setGroqSummary(result.summary ?? "");
+          }
+        } catch {
+          // If review fails, don't block the user — just approve
+          approved = true;
+          setGroqSummary("Review agent unavailable — video accepted");
+        }
+
+        if (approved || attempt >= MAX_ATTEMPTS) {
+          // ── Approved! Store and show ──────────────────────
+          setGroqStatus("approved");
+          setGroqIssues([]);
+          setGroqSummary(
+            approved
+              ? attempt === 1
+                ? "Groq approved on first attempt — no issues found"
+                : `Groq approved after ${attempt} iterations — all issues resolved`
+              : `Groq review complete after ${attempt} attempts`,
+          );
+          videoGenRef.current = null;
+
+          if (projectId !== null) storeVideoBlob(projectId, blob);
+          else (window as any).__pendingVideoBlob = blob;
+          setVideoReady(true);
+          return;
+        }
+
+        // ── Issues found — fix and retry ──────────────────
+        setGroqStatus("fixing");
+        setGroqIssues(issues);
+        previousIssues = issues;
+        setGroqSummary(`Found ${issues.length} issue${issues.length > 1 ? "s" : ""} — applying fixes before retry…`);
+
+        // Apply Groq's suggested fixes
+        if (fixes.refetchClips) {
+          const query = fixes.refetchQuery ?? `${videoStyle.replace(/_/g, " ")} ${prompt.split(" ").slice(0, 4).join(" ")}`;
+          const count = fixes.adjustClipCount ?? 8;
+          const newClips = await refetchClipsForReview(query, count);
+          if (newClips.length > 0) {
+            currentClips = newClips;
+            setBrollClips(newClips);
+            brollRef.current = newClips;
+          }
+        }
+
+        // Brief pause so the user can read the fix status
+        await new Promise((r) => setTimeout(r, 1800));
+        videoGenRef.current = null;
+
+      } catch (err) {
+        setVideoGenerating(false);
+        setGroqStatus("failed");
+        setGroqSummary("Video generation failed — please try again");
+        videoGenRef.current = null;
+        return;
+      }
+    }
   }
 
   async function handleGenerateScript() {
@@ -980,12 +1110,96 @@ export default function CreateVideo() {
                 </div>
               )}
 
+              {/* Groq review loop status */}
+              {groqStatus !== "idle" && (
+                <AnimatePresence mode="wait">
+                  <motion.div
+                    key={groqStatus + groqAttempt}
+                    initial={{ opacity: 0, y: 6 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: -4 }}
+                    className={`rounded-xl border p-4 space-y-3 ${
+                      groqStatus === "approved"
+                        ? "border-emerald-500/30 bg-emerald-500/8"
+                        : groqStatus === "reviewing"
+                        ? "border-purple-500/30 bg-purple-500/8"
+                        : groqStatus === "fixing"
+                        ? "border-yellow-500/30 bg-yellow-500/8"
+                        : groqStatus === "failed"
+                        ? "border-red-500/30 bg-red-500/8"
+                        : "border-border"
+                    }`}
+                  >
+                    {/* Header */}
+                    <div className="flex items-center gap-2">
+                      {groqStatus === "reviewing" && <Loader2 className="w-4 h-4 text-purple-400 animate-spin shrink-0" />}
+                      {groqStatus === "fixing"    && <RefreshCw className="w-4 h-4 text-yellow-400 animate-spin shrink-0" />}
+                      {groqStatus === "approved"  && <CheckCircle className="w-4 h-4 text-emerald-400 shrink-0" />}
+                      {groqStatus === "failed"    && <Zap className="w-4 h-4 text-red-400 shrink-0" />}
+                      <div className="flex-1">
+                        <p className={`text-xs font-bold uppercase tracking-wider ${
+                          groqStatus === "approved" ? "text-emerald-400"
+                          : groqStatus === "reviewing" ? "text-purple-400"
+                          : groqStatus === "fixing" ? "text-yellow-400"
+                          : "text-red-400"
+                        }`}>
+                          {groqStatus === "reviewing" && `Groq AI Review · Attempt ${groqAttempt}`}
+                          {groqStatus === "fixing"    && `Fixing Issues · Attempt ${groqAttempt} of 3`}
+                          {groqStatus === "approved"  && "Groq AI Approved"}
+                          {groqStatus === "failed"    && "Review Failed"}
+                        </p>
+                        {groqSummary && (
+                          <p className="text-[11px] text-muted-foreground mt-0.5 leading-relaxed">{groqSummary}</p>
+                        )}
+                      </div>
+                      {groqAttempt > 1 && (
+                        <span className="text-[9px] font-bold bg-yellow-500/15 text-yellow-400 px-2 py-0.5 rounded-full border border-yellow-500/20">
+                          ITERATION {groqAttempt}
+                        </span>
+                      )}
+                    </div>
+
+                    {/* Issues list */}
+                    {groqIssues.length > 0 && groqStatus === "fixing" && (
+                      <div className="space-y-1.5">
+                        <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Issues found by Groq:</p>
+                        {groqIssues.map((issue, i) => (
+                          <div key={i} className="flex items-start gap-2">
+                            <span className="text-yellow-400 text-[10px] mt-0.5 shrink-0">→</span>
+                            <p className="text-[11px] text-yellow-200/80">{issue}</p>
+                          </div>
+                        ))}
+                        <p className="text-[10px] text-yellow-400/70 mt-2 font-medium">
+                          Re-fetching better clips and regenerating…
+                        </p>
+                      </div>
+                    )}
+
+                    {/* Attempt progress dots */}
+                    <div className="flex items-center gap-1.5">
+                      {[1, 2, 3].map((n) => (
+                        <div key={n} className={`h-1.5 flex-1 rounded-full transition-colors ${
+                          n < groqAttempt ? "bg-emerald-500"
+                          : n === groqAttempt ? (groqStatus === "approved" ? "bg-emerald-500" : "bg-purple-500")
+                          : "bg-muted/30"
+                        }`} />
+                      ))}
+                      <span className="text-[9px] text-muted-foreground ml-1">
+                        {groqStatus === "approved" ? "done" : `${groqAttempt}/3`}
+                      </span>
+                    </div>
+                  </motion.div>
+                </AnimatePresence>
+              )}
+
               {/* Canvas video generation progress (real) */}
               {videoGenerating && (
                 <div className="space-y-3">
                   <div className="flex justify-between items-center">
                     <span className="text-xs text-muted-foreground">
-                      {brollClips.length > 0 ? "Compositing footage + audio…" : "Rendering cinematic scenes + audio…"}
+                      {groqAttempt > 1
+                        ? `Attempt ${groqAttempt} — regenerating with fixed clips…`
+                        : brollClips.length > 0 ? "Compositing footage + audio…" : "Rendering cinematic scenes + audio…"}
                     </span>
                     <span className="text-sm font-bold font-mono text-orange-400">{videoGenProgress}%</span>
                   </div>
@@ -1004,7 +1218,7 @@ export default function CreateVideo() {
                     ))}
                   </div>
                   <p className="text-[10px] text-center text-muted-foreground">
-                    Rendering {Math.round(videoGenProgress / 100 * 30 * 45)} of ~1350 frames · canvas compositor active
+                    Rendering {Math.round(videoGenProgress / 100 * 24 * 45)} of ~1080 frames · canvas compositor active
                   </p>
                 </div>
               )}

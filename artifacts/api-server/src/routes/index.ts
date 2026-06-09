@@ -21,6 +21,7 @@ import enterpriseRouter from "./enterprise";
 import cinematicRouter from "./cinematic";
 import brollRouter from "./broll";
 import learningRouter from "./learning";
+import videoReviewRouter from "./video-review";
 
 const router: IRouter = Router();
 
@@ -46,5 +47,6 @@ router.use("/enterprise", enterpriseRouter);
 router.use("/cinematic", cinematicRouter);
 router.use("/broll", brollRouter);
 router.use("/learning", learningRouter);
+router.use("/video", videoReviewRouter);
 
 export default router;

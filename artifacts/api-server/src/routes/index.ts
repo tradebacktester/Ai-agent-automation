@@ -20,6 +20,7 @@ import brandRouter from "./brand";
 import enterpriseRouter from "./enterprise";
 import cinematicRouter from "./cinematic";
 import brollRouter from "./broll";
+import learningRouter from "./learning";
 
 const router: IRouter = Router();
 
@@ -44,5 +45,6 @@ router.use("/brand", brandRouter);
 router.use("/enterprise", enterpriseRouter);
 router.use("/cinematic", cinematicRouter);
 router.use("/broll", brollRouter);
+router.use("/learning", learningRouter);
 
 export default router;

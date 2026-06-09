@@ -7,9 +7,16 @@ import { runVisualDirectorAgent } from "./visual-director-agent.js";
 import { runRetentionAgent } from "./retention-agent.js";
 import { runCaptionAgent } from "./caption-agent.js";
 import { runViralityEngine } from "./virality-engine.js";
+import { runViralPipeline } from "./viral-pipeline.js";
 import type { AgentLog, AgentContext } from "./types.js";
 
-export type OrchestratorMode = "full_pipeline" | "hooks_only" | "virality_check" | "visual_only" | "captions_only";
+export type OrchestratorMode =
+  | "full_pipeline"
+  | "viral_pipeline"
+  | "hooks_only"
+  | "virality_check"
+  | "visual_only"
+  | "captions_only";
 
 export interface OrchestratorResult {
   runId: number;
@@ -21,6 +28,7 @@ export interface OrchestratorResult {
   retention?: Awaited<ReturnType<typeof runRetentionAgent>>["data"];
   captions?: Awaited<ReturnType<typeof runCaptionAgent>>["data"];
   virality?: Awaited<ReturnType<typeof runViralityEngine>>["data"];
+  viralPipeline?: Awaited<ReturnType<typeof runViralPipeline>>;
   allLogs: AgentLog[];
   status: "completed" | "failed" | "partial";
   error?: string;
@@ -55,9 +63,35 @@ export async function orchestrateAgents(
     const prompt = context.prompt ?? "";
     const platform = context.platform ?? "all";
 
+    // ── Viral Pipeline mode: runs the full 10-agent cascade ─────────────────
+    if (mode === "viral_pipeline") {
+      const pipelineResult = await runViralPipeline(
+        prompt,
+        platform,
+        context.niche as string | undefined,
+        context.videoStyle as string | undefined
+      );
+      addLog(pipelineResult.agentLogs);
+      result.viralPipeline = pipelineResult;
+
+      if (context.projectId) {
+        await db.update(projectsTable)
+          .set({ status: "done", progress: 100, updatedAt: new Date() })
+          .where(eq(projectsTable.id, context.projectId));
+      }
+
+      await db.update(agentRunsTable)
+        .set({ status: "completed", output: result as unknown as Record<string, unknown>, agentLogs: allLogs })
+        .where(eq(agentRunsTable.id, runId));
+
+      return result;
+    }
+
+    // ── Standard pipeline modes ──────────────────────────────────────────────
     let script = prompt;
     if (context.projectId) {
-      const scriptRows = await db.select().from(scriptsTable).where(eq(scriptsTable.projectId, context.projectId)).limit(1);
+      const scriptRows = await db.select().from(scriptsTable)
+        .where(eq(scriptsTable.projectId, context.projectId)).limit(1);
       if (scriptRows.length > 0 && scriptRows[0].script) {
         script = scriptRows[0].script;
       }

@@ -3,6 +3,7 @@ import { db, scriptsTable, projectsTable } from "@workspace/db";
 import { eq } from "drizzle-orm";
 import { GenerateScriptBody } from "@workspace/api-zod";
 import { openai } from "@workspace/integrations-openai-ai-server";
+import { runViralPipeline } from "../agents/viral-pipeline.js";
 
 const router = Router();
 
@@ -31,7 +32,6 @@ router.post("/generate", async (req, res) => {
   let script = `[HOOK] ${hook}\n\n[BODY] Here's what the top 1% understand about ${prompt} that most people miss...\n\n[CTA] Follow for more.`;
   let cta = "Follow for more. Drop a comment if this hit different.";
 
-  // Use GPT-4o for real AI script generation
   try {
     const aiRes = await openai.chat.completions.create({
       model: "llama-3.3-70b-versatile",
@@ -41,25 +41,18 @@ router.post("/generate", async (req, res) => {
         {
           role: "system",
           content: `You are an elite viral content scriptwriter. You write scripts for ${platformStyle}.
-
 Your scripts follow the VIRAL formula:
 - Hook (0–2s): Pattern-interrupt opening that creates immediate curiosity
 - Problem (2–8s): Agitate the pain point the viewer resonates with
 - Insight (8–30s): Counter-intuitive truth, dense with value
 - Proof (30–45s): Evidence, example, or relatable story
 - CTA (final 3s): Simple, emotion-matched call to action
-
-Writing rules:
-- Short, punchy sentences (under 12 words)
-- No filler words
-- Every sentence earns its place
-- First word should be provocative
-
+Writing rules: Short punchy sentences. No filler. Every sentence earns its place.
 Respond in JSON: { "hook": "...", "script": "...", "cta": "..." }`,
         },
         {
           role: "user",
-          content: `Write a viral ${platform === "reels" ? "Instagram Reels" : "YouTube Shorts"} script for this concept:\n\n"${prompt}"\n\nMake it 45–55 seconds when read aloud. Write for the platform style: ${platformStyle}`,
+          content: `Write a viral ${platform === "reels" ? "Instagram Reels" : "YouTube Shorts"} script for: "${prompt}". Make it 45–55 seconds when read aloud.`,
         },
       ],
     });
@@ -70,7 +63,7 @@ Respond in JSON: { "hook": "...", "script": "...", "cta": "..." }`,
     if (parsed.script) script = parsed.script;
     if (parsed.cta) cta = parsed.cta;
   } catch {
-    // fallback to template above
+    // fallback to template
   }
 
   const scenes = [
@@ -102,11 +95,56 @@ Respond in JSON: { "hook": "...", "script": "...", "cta": "..." }`,
   res.json(row);
 });
 
-// Standalone AI script generation (no project ID required)
+// ── Multi-Agent Viral Pipeline endpoint ────────────────────────────────────────
+// Replaces single-LLM call with full 10-agent Research→Trend→Script→Judge→Optimize→Direct pipeline
 router.post("/generate-ai", async (req, res) => {
-  const { prompt, platform } = req.body as { prompt: string; platform?: string };
-  if (!prompt) { res.status(400).json({ error: "prompt required" }); return; }
+  const { prompt, platform, niche, videoStyle } = req.body as {
+    prompt: string;
+    platform?: string;
+    niche?: string;
+    videoStyle?: string;
+  };
 
+  if (!prompt) {
+    res.status(400).json({ error: "prompt required" });
+    return;
+  }
+
+  // Try the full multi-agent pipeline first
+  try {
+    const result = await runViralPipeline(
+      prompt,
+      platform ?? "youtube_shorts",
+      niche,
+      videoStyle
+    );
+
+    res.json({
+      success: true,
+      pipeline: true,
+      stages: result.pipelineStages,
+      data: {
+        hook: result.hook,
+        script: result.script,
+        cta: result.cta,
+        viralPotential: result.viralPotential,
+        emotionalTrigger: result.emotionalTrigger,
+        hookStyle: result.hookStyle,
+        estimatedWordCount: result.estimatedWordCount,
+        targetEmotion: result.targetEmotion,
+        judgeScore: result.judgeScore,
+        judgeApproved: result.judgeApproved,
+        researchInsights: result.researchInsights,
+        retentionStrategy: result.retentionStrategy,
+      },
+    });
+    return;
+  } catch (pipelineErr) {
+    // Pipeline failed — log and fall back to single-LLM generation
+    console.error("[VIRALOS] Multi-agent pipeline error, falling back:", pipelineErr);
+  }
+
+  // ── Single-LLM fallback ───────────────────────────────────────────────────
   const platformStyle = PLATFORM_SYSTEM[platform ?? "youtube_shorts"] ?? PLATFORM_SYSTEM["youtube_shorts"];
   const platformLabel = platform === "reels" ? "Instagram Reels" : "YouTube Shorts";
 
@@ -119,40 +157,21 @@ router.post("/generate-ai", async (req, res) => {
         {
           role: "system",
           content: `You are an elite viral short-form content scriptwriter. You specialize in ${platformLabel}.
-
-You understand viral psychology: curiosity gaps, emotional resonance, pattern interrupts, and dopamine engineering.
-
-Your scripts are structured: Hook → Problem → Insight → Proof → CTA.
-
-Rules:
-- Hook MUST create a curiosity gap in ≤12 words
-- Body: dense value, no filler, every sentence earns its place
-- Sentences: short and punchy (≤15 words each)  
-- Natural spoken language — not written
-- 50–60 seconds when spoken at normal pace (~130 wpm = ~110–130 words)
-
-Respond in JSON with this exact format:
-{
-  "hook": "Opening line that grabs attention immediately",
-  "script": "Full body script (without the hook, without CTA)",
-  "cta": "The closing call to action",
-  "viralPotential": 85,
-  "emotionalTrigger": "curiosity|fear|inspiration|anger|awe",
-  "targetEmotion": "description of the core emotion this evokes",
-  "estimatedWordCount": 120,
-  "hookStyle": "curiosity_gap|controversial|personal_story|bold_claim|data_point"
-}`,
+You understand viral psychology: curiosity gaps, emotional resonance, pattern interrupts.
+Structure: Hook → Problem → Insight → Proof → CTA.
+Rules: Hook ≤12 words. Sentences ≤15 words. Natural spoken language. 110–130 words total.
+Respond JSON: { "hook":"...","script":"...","cta":"...","viralPotential":85,"emotionalTrigger":"...","hookStyle":"...","estimatedWordCount":120 }`,
         },
         {
           role: "user",
-          content: `Write a viral ${platformLabel} script for this concept:\n\n"${prompt}"\n\nPlatform context: ${platformStyle}`,
+          content: `Write a viral ${platformLabel} script for: "${prompt}"\nPlatform context: ${platformStyle}`,
         },
       ],
     });
 
     const raw = aiRes.choices[0]?.message?.content ?? "";
     const result = JSON.parse(raw);
-    res.json({ success: true, data: result });
+    res.json({ success: true, pipeline: false, data: result });
   } catch (err) {
     const msg = err instanceof Error ? err.message : "Unknown error";
     res.status(500).json({ error: msg });

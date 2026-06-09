@@ -14,10 +14,10 @@ router.post("/keywords", async (req, res) => {
   }
 
   const styleHints: Record<string, string> = {
-    dark_motivation: "dark cinematic, intense, dramatic, fitness, success, grind",
-    luxury_cinematic: "luxury, premium, elegant, wealth, city skyline, golden hour",
-    documentary: "authentic, real people, streets, natural, storytelling",
-    anime_edit: "energy, power, speed, light beams, abstract, futuristic city",
+    dark_motivation: "dark cinematic gym, slow motion athlete, intense training, dramatic shadows, fire sparks, silhouette determination, black and white warrior, explosive energy",
+    luxury_cinematic: "luxury penthouse golden hour, sleek sports car night, champagne slow motion, wealthy lifestyle rooftop, city skyline aerial, premium watch close-up",
+    documentary: "close-up real emotion face, candid street portrait, dramatic sky timelapse, authentic hands working, raw storytelling moment, journalistic urban",
+    anime_edit: "neon city rain vertical, speed lines explosion, glowing energy aura, futuristic portal light, cyberpunk street vertical, particle burst cinematic",
   };
 
   const styleHint = styleHints[videoStyle ?? "dark_motivation"] ?? styleHints["dark_motivation"];
@@ -30,10 +30,15 @@ router.post("/keywords", async (req, res) => {
       messages: [
         {
           role: "system",
-          content: `You are a video director extracting B-roll search queries for stock footage.
-Style: ${styleHint}
-Generate cinematic, visual, specific search terms for portrait video (9:16 vertical format).
-Return JSON: { "queries": ["query1", "query2", ...] } — 5-7 queries, each 1-3 words, visual nouns/scenes.`,
+          content: `You are a viral video director choosing B-roll for short-form content (YouTube Shorts/Reels).
+Style context: ${styleHint}
+Rules:
+- Generate 7 search queries for stock video footage
+- Each query must be 1-4 words, highly visual, cinematic
+- Queries must match the script EMOTION and TOPIC — not just generic
+- Prioritize slow-motion, dramatic, high-contrast, vertical-friendly footage
+- Mix: action shots, close-ups, environmental/atmospheric, face expressions, symbolic visuals
+Return ONLY JSON: { "queries": ["query1", "query2", ...] }`,
         },
         {
           role: "user",
@@ -83,10 +88,11 @@ router.get("/search", async (req, res) => {
 
     const clips = ((data.videos ?? []) as any[]).map((v) => {
       const files: any[] = v.video_files ?? [];
-      // Prefer SD portrait for faster loading; fallback to any portrait; fallback to SD
-      const portrait = files.find((f) => f.height > f.width && f.quality === "sd")
+      // Prefer HD portrait for quality; fall back to SD portrait; then any portrait; then any
+      const portrait = files.find((f) => f.height > f.width && f.quality === "hd")
+        ?? files.find((f) => f.height > f.width && f.quality === "sd")
         ?? files.find((f) => f.height > f.width)
-        ?? files.find((f) => f.quality === "sd")
+        ?? files.find((f) => f.quality === "hd")
         ?? files[0];
 
       const rawUrl = portrait?.link ?? null;

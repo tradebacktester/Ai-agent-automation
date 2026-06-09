@@ -10,6 +10,7 @@ import CreateVideo from "@/pages/CreateVideo";
 import Projects from "@/pages/Projects";
 import ProjectDetail from "@/pages/ProjectDetail";
 import Settings from "@/pages/Settings";
+import CommandCenter from "@/pages/CommandCenter";
 import AuthPage from "@/pages/AuthPage";
 
 const queryClient = new QueryClient({
@@ -41,6 +42,7 @@ function AppRoutes() {
       <Route path="/projects"><ProtectedPage><Projects /></ProtectedPage></Route>
       <Route path="/projects/:id">{() => <ProtectedPage><ProjectDetail /></ProtectedPage>}</Route>
       <Route path="/settings"><ProtectedPage><Settings /></ProtectedPage></Route>
+      <Route path="/command"><ProtectedPage><CommandCenter /></ProtectedPage></Route>
       <Route component={NotFound} />
     </Switch>
   );

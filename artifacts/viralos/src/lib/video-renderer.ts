@@ -32,6 +32,13 @@ const FPS = 30;
 const W   = 540;
 const H   = 960;
 
+// Pre-built font strings — avoids repeated string concat in hot path
+const FONT_HOOK = `900 60px system-ui,-apple-system,sans-serif`;
+const FONT_BODY = `900 52px system-ui,-apple-system,sans-serif`;
+const FONT_CTA  = `900 46px system-ui,-apple-system,sans-serif`;
+const FONT_LOWER = `700 17px system-ui,sans-serif`;
+const FONT_MARK  = `bold 13px system-ui,sans-serif`;
+
 // ─── Easing ──────────────────────────────────────────────────────────────────
 function easeOut(t: number) { return 1 - Math.pow(1 - Math.min(Math.max(t, 0), 1), 3); }
 function easeInOut(t: number) {
@@ -51,7 +58,7 @@ const STYLE_COLORS: Record<string, string[]> = {
 
 function spawnParticles(style: string, count: number): Particle[] {
   const colors = STYLE_COLORS[style] ?? STYLE_COLORS["dark_motivation"];
-  return Array.from({ length: count }, () => ({
+  return Array.from({ length: Math.min(count, 30) }, () => ({
     x: Math.random() * W, y: H + Math.random() * H,
     r: Math.random() * 2.5 + 0.5,
     vx: (Math.random() - 0.5) * 1.2, vy: -(Math.random() * 3 + 1),
@@ -159,10 +166,10 @@ function drawKaraoke(ctx: CanvasRenderingContext2D, pt: PhraseTimestamp, sec: nu
   if (appear < 0.02) return;
 
   const accent = ACCENT[style] ?? "#FF3333";
-  const fs = pt.isHook ? 60 : pt.isCTA ? 46 : 52;
   ctx.save();
   ctx.globalAlpha = appear;
-  ctx.font = `900 ${fs}px system-ui,-apple-system,sans-serif`;
+  ctx.font = pt.isHook ? FONT_HOOK : pt.isCTA ? FONT_CTA : FONT_BODY;
+  const fs = pt.isHook ? 60 : pt.isCTA ? 46 : 52;
   ctx.textAlign = "left";
 
   // Build word list with fallback timing if words[] not provided
@@ -205,14 +212,15 @@ function drawKaraoke(ctx: CanvasRenderingContext2D, pt: PhraseTimestamp, sec: nu
         const pop = 1 + Math.sin(t * Math.PI) * 0.1;
         ctx.save();
         ctx.translate(x + ww / 2, y); ctx.scale(pop, pop); ctx.translate(-(x + ww / 2), -y);
-        ctx.shadowColor = accent; ctx.shadowBlur = 20;
-        ctx.strokeStyle = "rgba(0,0,0,0.9)"; ctx.lineWidth = 9; ctx.lineJoin = "round";
+        ctx.shadowColor = accent; ctx.shadowBlur = 8;
+        ctx.strokeStyle = "rgba(0,0,0,0.9)"; ctx.lineWidth = 8; ctx.lineJoin = "round";
         ctx.strokeText(wt.word, x, y);
+        ctx.shadowBlur = 0;
         ctx.fillStyle = accent; ctx.fillText(wt.word, x, y);
         ctx.restore();
       } else if (isPast) {
-        ctx.shadowColor = "rgba(0,0,0,0.8)"; ctx.shadowBlur = 10;
-        ctx.strokeStyle = "rgba(0,0,0,0.75)"; ctx.lineWidth = 7; ctx.lineJoin = "round";
+        ctx.shadowBlur = 0;
+        ctx.strokeStyle = "rgba(0,0,0,0.75)"; ctx.lineWidth = 6; ctx.lineJoin = "round";
         ctx.strokeText(wt.word, x, y);
         ctx.fillStyle = "#FFFFFF"; ctx.fillText(wt.word, x, y);
       } else {
@@ -376,18 +384,19 @@ function drawFrame(
   ctx.save();
   ctx.fillStyle = "rgba(0,0,0,0.65)";
   ctx.fillRect(0, H - 60, W, 60);
-  ctx.font = "700 17px system-ui,sans-serif";
+  ctx.font = FONT_LOWER;
   ctx.textAlign = "center";
+  ctx.shadowBlur = 0;
   ctx.fillStyle = "#FFFFFF";
-  ctx.shadowColor = "rgba(0,0,0,0.9)"; ctx.shadowBlur = 8;
   ctx.fillText(script.title.toUpperCase().slice(0, 34), W / 2, H - 21);
   ctx.restore();
 
   // 6. Watermark
   ctx.save();
-  ctx.font = "bold 13px system-ui,sans-serif";
+  ctx.font = FONT_MARK;
   ctx.fillStyle = "rgba(255,255,255,0.11)";
   ctx.textAlign = "right";
+  ctx.shadowBlur = 0;
   ctx.fillText("VIRALOS AI", W - 16, 26);
   ctx.restore();
 

@@ -202,17 +202,17 @@ export default function CreateVideo() {
       if (!queries?.length) return [];
 
       const clips: BrollClip[] = [];
-      const querySlice = queries.slice(0, 4);
+      const querySlice = queries.slice(0, 7);
 
       await Promise.allSettled(
         querySlice.map(async (q) => {
           try {
-            const r = await fetch(`/api/broll/search?query=${encodeURIComponent(q)}&per_page=2`, {
-              signal: AbortSignal.timeout(10000),
+            const r = await fetch(`/api/broll/search?query=${encodeURIComponent(q)}&per_page=4`, {
+              signal: AbortSignal.timeout(12000),
             });
             if (!r.ok) return;
             const { clips: found, noKey } = await r.json() as { clips: BrollClip[]; noKey?: boolean };
-            if (!noKey && found?.length) clips.push(...found.slice(0, 2));
+            if (!noKey && found?.length) clips.push(...found.slice(0, 4));
           } catch {}
         }),
       );

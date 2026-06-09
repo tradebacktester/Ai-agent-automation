@@ -2,12 +2,13 @@ import { Link, useLocation } from "wouter";
 import { motion } from "framer-motion";
 import { useAdminAuth } from "@/contexts/AdminAuth";
 import {
-  LayoutDashboard, Video, FolderOpen, Settings, Zap, LogOut,
+  LayoutDashboard, Video, FolderOpen, Settings, Zap, LogOut, Cpu,
 } from "lucide-react";
 
 const NAV_ITEMS = [
   { path: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
   { path: "/create", label: "Create Video", icon: Video },
+  { path: "/command", label: "JARVIS AI", icon: Cpu, badge: "AI" },
   { path: "/projects", label: "Projects", icon: FolderOpen },
   { path: "/settings", label: "Settings", icon: Settings },
 ];
@@ -51,7 +52,12 @@ export default function Layout({ children }: { children: React.ReactNode }) {
                   }`}
                 >
                   <Icon className={`w-3.5 h-3.5 shrink-0 ${active ? "text-primary" : ""}`} />
-                  <span className="text-[11px]">{item.label}</span>
+                  <span className="flex-1 text-[11px]">{item.label}</span>
+                  {item.badge && (
+                    <span className="text-[9px] px-1 py-0.5 rounded font-bold bg-primary/20 text-primary">
+                      {item.badge}
+                    </span>
+                  )}
                 </motion.div>
               </Link>
             );

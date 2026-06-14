@@ -10,8 +10,8 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
-import { hasVideoBlob, downloadVideo } from "@/lib/video-store";
-import { Video, Plus, Trash2, ChevronRight, Search, Loader2, Download } from "lucide-react";
+import { hasVideoBlob, downloadVideo, getVideoUrl, getMimeType } from "@/lib/video-store";
+import { Video, Plus, Trash2, ChevronRight, Search, Loader2, Download, Play, X } from "lucide-react";
 
 const STATUS_COLORS: Record<string, string> = {
   pending: "text-muted-foreground bg-muted",
@@ -41,12 +41,20 @@ const item = {
   show: { opacity: 1, y: 0 },
 };
 
+interface VideoPreview {
+  projectId: number;
+  title: string;
+  url: string;
+  mime: string;
+}
+
 export default function Projects() {
   const queryClient = useQueryClient();
   const { toast } = useToast();
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("");
   const [platformFilter, setPlatformFilter] = useState("");
+  const [preview, setPreview] = useState<VideoPreview | null>(null);
 
   const { data: projects, isLoading } = useListProjects({
     status: statusFilter || undefined,
@@ -64,6 +72,15 @@ export default function Projects() {
     } catch {
       toast({ title: "Failed to delete", variant: "destructive" });
     }
+  }
+
+  function handlePlay(id: number, title: string) {
+    const url = getVideoUrl(id);
+    if (!url) {
+      toast({ title: "Video not available in this session", description: "Re-generate or download the video first.", variant: "destructive" });
+      return;
+    }
+    setPreview({ projectId: id, title, url, mime: getMimeType(id) });
   }
 
   const filtered = projects?.filter((p) =>
@@ -166,13 +183,22 @@ export default function Projects() {
                     </div>
                   )}
                   {project.status === "done" && hasVideoBlob(project.id) && (
-                    <button
-                      onClick={() => { downloadVideo(project.id, project.title); toast({ title: "Download started" }); }}
-                      title="Download video"
-                      className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-emerald-500/15 border border-emerald-500/30 text-emerald-400 text-[11px] font-semibold hover:bg-emerald-500/25 transition-colors"
-                    >
-                      <Download className="w-3 h-3" /> Download
-                    </button>
+                    <div className="flex items-center gap-1.5">
+                      <button
+                        onClick={() => handlePlay(project.id, project.title)}
+                        title="Preview video"
+                        className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-primary/15 border border-primary/30 text-primary text-[11px] font-semibold hover:bg-primary/25 transition-colors"
+                      >
+                        <Play className="w-3 h-3" /> Play
+                      </button>
+                      <button
+                        onClick={() => { downloadVideo(project.id, project.title); toast({ title: "Download started" }); }}
+                        title="Download video"
+                        className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-emerald-500/15 border border-emerald-500/30 text-emerald-400 text-[11px] font-semibold hover:bg-emerald-500/25 transition-colors"
+                      >
+                        <Download className="w-3 h-3" /> Download
+                      </button>
+                    </div>
                   )}
                   <Link href={`/projects/${project.id}`}>
                     <button data-testid={`button-open-project-${project.id}`} className="p-1.5 rounded-lg hover:bg-muted transition-colors">
@@ -192,6 +218,52 @@ export default function Projects() {
             </motion.div>
           ))}
         </motion.div>
+      )}
+
+      {/* Video Preview Modal */}
+      {preview && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm"
+          onClick={() => setPreview(null)}
+        >
+          <div
+            className="relative bg-card rounded-2xl border border-border shadow-2xl overflow-hidden max-w-sm w-full mx-4"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Header */}
+            <div className="flex items-center justify-between px-4 py-3 border-b border-border">
+              <p className="text-sm font-semibold text-foreground truncate pr-2">{preview.title}</p>
+              <button
+                onClick={() => setPreview(null)}
+                className="p-1.5 rounded-lg hover:bg-muted text-muted-foreground hover:text-foreground transition-colors shrink-0"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+            {/* Video player */}
+            <div className="bg-black aspect-[9/16] w-full">
+              <video
+                src={preview.url}
+                controls
+                autoPlay
+                playsInline
+                className="w-full h-full object-contain"
+                style={{ maxHeight: "70vh" }}
+              >
+                <source src={preview.url} type={preview.mime} />
+              </video>
+            </div>
+            {/* Footer */}
+            <div className="flex gap-2 px-4 py-3 border-t border-border">
+              <button
+                onClick={() => { downloadVideo(preview.projectId, preview.title); toast({ title: "Download started" }); }}
+                className="flex-1 flex items-center justify-center gap-2 px-3 py-2 rounded-lg bg-emerald-500/15 border border-emerald-500/30 text-emerald-400 text-xs font-semibold hover:bg-emerald-500/25 transition-colors"
+              >
+                <Download className="w-3.5 h-3.5" /> Download
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );

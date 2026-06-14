@@ -43,10 +43,12 @@ const FRAME_MS      = 1000 / FPS;          // ms between frames  ≈ 41.67ms
 const W             = 540;
 const H             = 960;
 const MAX_CLIPS     = 10;
-const CLIP_CAP_SEC  = 10;
-const XFADE_SECS    = 0.25;               // crossfade duration on clip switch
+const CLIP_CAP_SEC  = 3;                   // viral pacing: cut every 2-3s max
+const XFADE_SECS    = 0.15;               // snappier crossfade for short clips
 
-// Pre-built font strings — Montserrat/Impact matches the viral short-form spec
+// Pre-built font strings — Anton/Montserrat ExtraBold for viral one-word captions
+const FONT_CAPTION_LG = `900 82px "Anton","Montserrat",Impact,system-ui,sans-serif`;
+const FONT_CAPTION_MD = `900 74px "Anton","Montserrat",Impact,system-ui,sans-serif`;
 const FONT_HOOK  = `900 72px "Montserrat",Impact,system-ui,-apple-system,sans-serif`;
 const FONT_BODY  = `800 60px "Montserrat",Impact,system-ui,-apple-system,sans-serif`;
 const FONT_CTA   = `800 54px "Montserrat",Impact,system-ui,-apple-system,sans-serif`;
@@ -208,6 +210,10 @@ interface CaptionLayout {
 // One cached layout per session — only rebuilt when the phrase changes
 let _captionCache: CaptionLayout | null = null;
 
+// Viral one-word tracking: counts transitions to alternate yellow/white
+let _lastActiveWordKey = "";
+let _wordCount = 0;
+
 function getLayout(
   ctx: CanvasRenderingContext2D,
   pt: PhraseTimestamp,
@@ -265,53 +271,139 @@ function getLayout(
   return _captionCache;
 }
 
-function drawKaraoke(ctx: CanvasRenderingContext2D, pt: PhraseTimestamp, sec: number, style: string) {
+// ─── Viral one-word caption renderer ─────────────────────────────────────────
+// One word at a time, centered, yellow+white alternating, bounce scale animation.
+// Font: Anton/Montserrat ExtraBold. Drop shadow: black 3px blur.
+function drawKaraoke(ctx: CanvasRenderingContext2D, pt: PhraseTimestamp, sec: number, _style: string) {
   const age = sec - pt.startSec;
   if (age < 0) return;
-  const appear = easeOut(Math.min(age * 8, 1));
+
+  // Build per-word timeline (use server timestamps when available)
+  const rawWords: WordTimestamp[] = pt.words?.length
+    ? pt.words
+    : pt.phrase.split(" ").filter(Boolean).map((w, i, arr) => {
+        const dur = (pt.endSec - pt.startSec) / arr.length;
+        return { word: w, startSec: pt.startSec + i * dur, endSec: pt.startSec + (i + 1) * dur };
+      });
+
+  // Find active word at this timestamp
+  let activeWord: WordTimestamp | null = null;
+  let activeIdx = -1;
+  for (let i = 0; i < rawWords.length; i++) {
+    if (sec >= rawWords[i].startSec && sec < rawWords[i].endSec) {
+      activeWord = rawWords[i];
+      activeIdx  = i;
+      break;
+    }
+  }
+  if (!activeWord || activeIdx < 0) return;
+
+  // Count word transitions to alternate yellow / white
+  const wordKey = `${pt.startSec}_${activeIdx}`;
+  if (wordKey !== _lastActiveWordKey) {
+    _lastActiveWordKey = wordKey;
+    _wordCount++;
+  }
+
+  // Appear ease-in from phrase start
+  const appear = easeOut(Math.min(age * 12, 1));
   if (appear < 0.02) return;
 
-  const layout = getLayout(ctx, pt, style);
+  // Bounce: scale peaks at the midpoint of each word's duration
+  const t   = (sec - activeWord.startSec) / Math.max(activeWord.endSec - activeWord.startSec, 0.001);
+  const pop = 1 + Math.sin(t * Math.PI) * 0.07;
+
+  // Alternating yellow (#FFE033) / white (#FFFFFF)
+  const fillColor = _wordCount % 2 === 0 ? "#FFE033" : "#FFFFFF";
+  const fs = pt.isHook ? 82 : 76;
+
+  const word = activeWord.word.toUpperCase();
+  const x = W / 2;
+  const y = H * 0.66;
 
   ctx.save();
   ctx.globalAlpha = appear;
-  ctx.font = layout.font;
-  ctx.textAlign = "left";
+  ctx.font = `900 ${fs}px "Anton","Montserrat",Impact,system-ui,sans-serif`;
+  ctx.textAlign = "center";
 
-  for (const line of layout.lines) {
-    for (const { wt, x, y, width } of line) {
-      const isActive = sec >= wt.startSec && sec < wt.endSec;
-      const isPast   = sec >= wt.endSec;
+  // Bounce transform — scale from word center
+  ctx.translate(x, y);
+  ctx.scale(pop, pop);
+  ctx.translate(-x, -y);
 
-      if (isActive) {
-        // Viral spec: white outline (4px) on the highlighted word, accent fill
-        const t   = (sec - wt.startSec) / Math.max(wt.endSec - wt.startSec, 0.001);
-        const pop = 1 + Math.sin(t * Math.PI) * 0.07;
-        ctx.save();
-        ctx.translate(x + width / 2, y); ctx.scale(pop, pop); ctx.translate(-(x + width / 2), -y);
-        ctx.shadowColor = layout.accent; ctx.shadowBlur = 10;
-        ctx.strokeStyle = "#FFFFFF"; ctx.lineWidth = 4; ctx.lineJoin = "round";
-        ctx.strokeText(wt.word, x, y);
-        ctx.shadowBlur = 0;
-        ctx.fillStyle = layout.accent;
-        ctx.fillText(wt.word, x, y);
-        ctx.restore();
-      } else if (isPast) {
-        // Viral spec: black outline (3px), white fill
-        ctx.strokeStyle = "#000000"; ctx.lineWidth = 3; ctx.lineJoin = "round";
-        ctx.shadowBlur = 0;
-        ctx.strokeText(wt.word, x, y);
-        ctx.fillStyle = "#FFFFFF";
-        ctx.fillText(wt.word, x, y);
-      } else {
-        // Upcoming word — dim preview
-        ctx.save();
-        ctx.globalAlpha = appear * 0.25;
-        ctx.fillStyle = "#CCCCCC";
-        ctx.fillText(wt.word, x, y);
-        ctx.restore();
-      }
+  // Black drop shadow (3px blur per spec)
+  ctx.shadowColor   = "#000000";
+  ctx.shadowBlur    = 3;
+  ctx.shadowOffsetX = 2;
+  ctx.shadowOffsetY = 2;
+
+  // Thick black stroke for legibility over any background
+  ctx.strokeStyle = "#000000";
+  ctx.lineWidth   = 6;
+  ctx.lineJoin    = "round";
+  ctx.strokeText(word, x, y);
+
+  // Colored fill (shadow already applied)
+  ctx.shadowBlur = 0;
+  ctx.fillStyle  = fillColor;
+  ctx.fillText(word, x, y);
+
+  ctx.restore();
+}
+
+// ─── Hook overlay: big Impact text on frame 1, before voice starts (0–2s) ─────
+function drawHookOverlay(ctx: CanvasRenderingContext2D, hookText: string, sec: number) {
+  if (sec >= 2.0) return;
+
+  // Fade-in 0–0.25 s, hold 0.25–1.5 s, fade-out 1.5–2.0 s
+  let alpha = 1;
+  if (sec < 0.25)     alpha = sec / 0.25;
+  else if (sec > 1.5) alpha = 1 - (sec - 1.5) / 0.5;
+  if (alpha <= 0.02) return;
+
+  const text = hookText.toUpperCase();
+  const fs   = 68;
+
+  ctx.save();
+  ctx.globalAlpha = alpha;
+  ctx.font        = `900 ${fs}px Impact,"Arial Black",sans-serif`;
+  ctx.textAlign   = "center";
+
+  // Word-wrap to fit canvas width
+  const words = text.split(" ");
+  const lines: string[] = [];
+  let line = "";
+  for (const w of words) {
+    const test = line ? `${line} ${w}` : w;
+    if (ctx.measureText(test).width > W - 60 && line) {
+      lines.push(line);
+      line = w;
+    } else {
+      line = test;
     }
+  }
+  if (line) lines.push(line);
+
+  const lineH  = fs * 1.28;
+  const totalH = lines.length * lineH;
+  const startY = H * 0.22 - totalH / 2 + fs;
+
+  for (let i = 0; i < lines.length; i++) {
+    const y = startY + i * lineH;
+    // Black drop shadow
+    ctx.shadowColor   = "#000000";
+    ctx.shadowBlur    = 3;
+    ctx.shadowOffsetX = 2;
+    ctx.shadowOffsetY = 2;
+    // Thick black stroke
+    ctx.strokeStyle = "#000000";
+    ctx.lineWidth   = 8;
+    ctx.lineJoin    = "round";
+    ctx.strokeText(lines[i], W / 2, y);
+    // White fill
+    ctx.shadowBlur = 0;
+    ctx.fillStyle  = "#FFFFFF";
+    ctx.fillText(lines[i], W / 2, y);
   }
   ctx.restore();
 }
@@ -383,14 +475,21 @@ async function loadClipStream(url: string, container: HTMLElement): Promise<Load
 }
 
 // ─── FIX 6: Sequencer with crossfade ─────────────────────────────────────────
+interface BlendResult {
+  primary: LoadedClip | null;
+  secondary: LoadedClip | null;
+  alpha: number;
+  primaryLocalSec: number;   // time elapsed within current clip window (for Ken Burns)
+  primaryDuration: number;   // duration of current clip window
+}
 interface Sequencer {
-  getBlend(sec: number): { primary: LoadedClip | null; secondary: LoadedClip | null; alpha: number };
+  getBlend(sec: number): BlendResult;
   totalClips: number;
 }
 
 function buildSequencer(clips: LoadedClip[]): Sequencer {
   if (!clips.length) return {
-    getBlend: () => ({ primary: null, secondary: null, alpha: 1 }),
+    getBlend: () => ({ primary: null, secondary: null, alpha: 1, primaryLocalSec: 0, primaryDuration: 3 }),
     totalClips: 0,
   };
 
@@ -422,7 +521,7 @@ function buildSequencer(clips: LoadedClip[]): Sequencer {
   return {
     totalClips: clips.length,
     getBlend(sec: number) {
-      if (!total) return { primary: null, secondary: null, alpha: 1 };
+      if (!total) return { primary: null, secondary: null, alpha: 1, primaryLocalSec: 0, primaryDuration: CLIP_CAP_SEC };
       const looped = sec % total;
       let idx = windows.findIndex(w => looped >= w.start && looped < w.end);
       if (idx < 0) idx = windows.length - 1;
@@ -442,11 +541,14 @@ function buildSequencer(clips: LoadedClip[]): Sequencer {
       const xfadeProgress = xfadeStart > 0
         ? Math.min((sec - xfadeStart) / XFADE_SECS, 1) : 0;
 
+      const clipLocalSec = (ai: number) => Math.max(looped - windows[ai].start, 0);
+      const clipDur      = (ai: number) => windows[ai].end - windows[ai].start;
+
       if (xfadeProgress >= 1) {
         // Crossfade complete — fully commit to new clip
         if (activeIdx !== idx) switchTo(idx);
         xfadeStart = -99;
-        return { primary: clips[activeIdx], secondary: null, alpha: 1 };
+        return { primary: clips[activeIdx], secondary: null, alpha: 1, primaryLocalSec: clipLocalSec(activeIdx), primaryDuration: clipDur(activeIdx) };
       }
 
       // During crossfade: primary = old, secondary = new
@@ -454,13 +556,15 @@ function buildSequencer(clips: LoadedClip[]): Sequencer {
         return {
           primary:   activeIdx >= 0 ? clips[activeIdx] : null,
           secondary: clips[idx],
-          alpha: xfadeProgress,          // 0→1 as new clip fades in
+          alpha: xfadeProgress,
+          primaryLocalSec: activeIdx >= 0 ? clipLocalSec(activeIdx) : 0,
+          primaryDuration: activeIdx >= 0 ? clipDur(activeIdx) : CLIP_CAP_SEC,
         };
       }
 
       // Normal — no crossfade
       switchTo(idx);
-      return { primary: clips[activeIdx], secondary: null, alpha: 1 };
+      return { primary: clips[activeIdx], secondary: null, alpha: 1, primaryLocalSec: clipLocalSec(activeIdx), primaryDuration: clipDur(activeIdx) };
     },
   };
 }
@@ -476,15 +580,17 @@ const OVERLAYS: Record<string, string> = {
 function drawClip(
   ctx: CanvasRenderingContext2D,
   clip: LoadedClip,
-  sec: number,
+  localSec: number,    // time elapsed within this clip's window (0 → clipDuration)
+  clipDuration: number,
   alpha: number,
   style: string,
 ) {
   const el = clip.el;
   if (!el || el.readyState < 2 || !el.videoWidth) return false;
   try {
-    // FIX 4: use pre-cached baseScale, only multiply by zoom
-    const zoom  = 1.0 + ((sec % 10) / 10) * 0.05;
+    // Ken Burns: smooth zoom-in from 1.0 → 1.08 over each clip's full duration
+    const progress = Math.min(localSec / Math.max(clipDuration, 0.001), 1);
+    const zoom  = 1 + progress * 0.08;
     const scale = clip.baseScale * zoom;
     const sw = el.videoWidth  * scale;
     const sh = el.videoHeight * scale;
@@ -509,16 +615,16 @@ function drawFrame(
   overlay: OffscreenCanvas,      // FIX 3: pre-baked static overlay
   phraseTimestamps?: PhraseTimestamp[],
 ) {
-  const { primary, secondary, alpha } = sequencer.getBlend(sec);
+  const { primary, secondary, alpha, primaryLocalSec, primaryDuration } = sequencer.getBlend(sec);
   let clipDrawn = false;
 
   if (primary) {
-    const drawn = drawClip(ctx, primary, sec, secondary ? 1 - alpha : 1, style);
+    const drawn = drawClip(ctx, primary, primaryLocalSec, primaryDuration, secondary ? 1 - alpha : 1, style);
     if (drawn) {
       clipDrawn = true;
-      // Crossfade: draw next clip on top with increasing alpha
+      // Crossfade: draw next clip on top with increasing alpha (secondary starts at local 0)
       if (secondary && alpha > 0) {
-        drawClip(ctx, secondary, sec, alpha, style);
+        drawClip(ctx, secondary, 0, primaryDuration, alpha, style);
       }
     }
   }
@@ -535,12 +641,11 @@ function drawFrame(
     ctx.fillRect(0, 0, W, H);
   }
 
-  // FIX 3: single drawImage replaces 5 canvas operations (vignette + lower-third + watermark)
+  // Pre-baked static overlay (vignette + lower-third + watermark)
   ctx.drawImage(overlay, 0, 0);
 
-  // Captions
+  // Viral captions (one word at a time, yellow/white alternating)
   if (phraseTimestamps?.length) {
-    // FIX 5: O(1) lookup
     const current = getCurrentPhrase(phraseTimestamps, sec);
     if (current) drawKaraoke(ctx, current, sec, style);
   } else {
@@ -557,6 +662,9 @@ function drawFrame(
       }, sec, style);
     }
   }
+
+  // Hook overlay: bold white Impact text in first 2 seconds, before voice kicks in
+  drawHookOverlay(ctx, script.hook, sec);
 
   // Flash on scene transitions (2 moments)
   for (const moment of [totalSec * 0.15, totalSec * 0.82]) {
@@ -600,8 +708,10 @@ export async function generateVideo(
   const staticOverlay = buildStaticOverlay(script.title);
 
   // Reset per-render state
-  _captionCache = null;
-  _phraseIdx    = 0;
+  _captionCache       = null;
+  _phraseIdx          = 0;
+  _lastActiveWordKey  = "";
+  _wordCount          = 0;
 
   let audioCtx: AudioContext | null = null;
   if (audioBlob) {
@@ -692,6 +802,30 @@ export async function generateVideo(
         rec.start(200);
         const t0 = ac.currentTime;
         source.start(t0);
+
+        // Background music: fetch from Pixabay via backend proxy, mix at 15% volume
+        (async () => {
+          try {
+            const musicRes = await fetch("/api/clips/music?q=cinematic+background");
+            if (!musicRes.ok) return;
+            const musicData = await musicRes.json() as { tracks?: Array<{ url: string }> };
+            const musicUrl = musicData.tracks?.[0]?.url;
+            if (!musicUrl) return;
+            const musicArrayBuf = await fetch(musicUrl).then(r => r.arrayBuffer());
+            const musicAudioBuf = await ac.decodeAudioData(musicArrayBuf);
+            const musicSrc = ac.createBufferSource();
+            musicSrc.buffer = musicAudioBuf;
+            musicSrc.loop   = true;
+            const musicGain = ac.createGain();
+            musicGain.gain.value = 0.15;      // 15% volume under voice
+            musicSrc.connect(musicGain);
+            musicGain.connect(dest);
+            musicSrc.start(ac.currentTime);
+          } catch (e) {
+            console.warn("[VIRALOS] Background music skipped:", e);
+          }
+        })();
+
         let prevSec = 0;
 
         const tick = () => {

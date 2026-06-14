@@ -46,10 +46,10 @@ const MAX_CLIPS     = 10;
 const CLIP_CAP_SEC  = 10;
 const XFADE_SECS    = 0.25;               // crossfade duration on clip switch
 
-// Pre-built font strings
-const FONT_HOOK  = `900 60px system-ui,-apple-system,sans-serif`;
-const FONT_BODY  = `900 52px system-ui,-apple-system,sans-serif`;
-const FONT_CTA   = `900 46px system-ui,-apple-system,sans-serif`;
+// Pre-built font strings — Montserrat/Impact matches the viral short-form spec
+const FONT_HOOK  = `900 72px "Montserrat",Impact,system-ui,-apple-system,sans-serif`;
+const FONT_BODY  = `800 60px "Montserrat",Impact,system-ui,-apple-system,sans-serif`;
+const FONT_CTA   = `800 54px "Montserrat",Impact,system-ui,-apple-system,sans-serif`;
 const FONT_LOWER = `700 17px system-ui,sans-serif`;
 const FONT_MARK  = `bold 13px system-ui,sans-serif`;
 
@@ -179,10 +179,11 @@ function buildScript(script: VideoScript) {
 
 // ─── FIX 2: Caption layout cache ─────────────────────────────────────────────
 // Word positions are computed once per phrase and reused every frame.
+// Accent = highlighted (active) word color — viral spec uses #FF3B30 red
 const ACCENT: Record<string, string> = {
-  dark_motivation: "#FF3333",
+  dark_motivation: "#FF3B30",
   luxury_cinematic:"#FFD700",
-  documentary:     "#F5DEB3",
+  documentary:     "#F5C842",
   anime_edit:      "#00FFFF",
 };
 
@@ -216,7 +217,7 @@ function getLayout(
   if (_captionCache?.key === key) return _captionCache;
 
   const font   = pt.isHook ? FONT_HOOK : pt.isCTA ? FONT_CTA : FONT_BODY;
-  const fs     = pt.isHook ? 60        : pt.isCTA ? 46        : 52;
+  const fs     = pt.isHook ? 72        : pt.isCTA ? 54        : 60;
   const accent = ACCENT[style] ?? "#FF3333";
   ctx.font = font;
   ctx.textAlign = "left";
@@ -283,27 +284,30 @@ function drawKaraoke(ctx: CanvasRenderingContext2D, pt: PhraseTimestamp, sec: nu
       const isPast   = sec >= wt.endSec;
 
       if (isActive) {
+        // Viral spec: white outline (4px) on the highlighted word, accent fill
         const t   = (sec - wt.startSec) / Math.max(wt.endSec - wt.startSec, 0.001);
-        const pop = 1 + Math.sin(t * Math.PI) * 0.08;
+        const pop = 1 + Math.sin(t * Math.PI) * 0.07;
         ctx.save();
         ctx.translate(x + width / 2, y); ctx.scale(pop, pop); ctx.translate(-(x + width / 2), -y);
-        ctx.shadowColor = layout.accent; ctx.shadowBlur = 8;
-        ctx.strokeStyle = "rgba(0,0,0,0.9)"; ctx.lineWidth = 8; ctx.lineJoin = "round";
+        ctx.shadowColor = layout.accent; ctx.shadowBlur = 10;
+        ctx.strokeStyle = "#FFFFFF"; ctx.lineWidth = 4; ctx.lineJoin = "round";
         ctx.strokeText(wt.word, x, y);
         ctx.shadowBlur = 0;
         ctx.fillStyle = layout.accent;
         ctx.fillText(wt.word, x, y);
         ctx.restore();
       } else if (isPast) {
-        ctx.strokeStyle = "rgba(0,0,0,0.75)"; ctx.lineWidth = 6; ctx.lineJoin = "round";
+        // Viral spec: black outline (3px), white fill
+        ctx.strokeStyle = "#000000"; ctx.lineWidth = 3; ctx.lineJoin = "round";
         ctx.shadowBlur = 0;
         ctx.strokeText(wt.word, x, y);
         ctx.fillStyle = "#FFFFFF";
         ctx.fillText(wt.word, x, y);
       } else {
+        // Upcoming word — dim preview
         ctx.save();
-        ctx.globalAlpha = appear * 0.28;
-        ctx.fillStyle = "#BBBBBB";
+        ctx.globalAlpha = appear * 0.25;
+        ctx.fillStyle = "#CCCCCC";
         ctx.fillText(wt.word, x, y);
         ctx.restore();
       }

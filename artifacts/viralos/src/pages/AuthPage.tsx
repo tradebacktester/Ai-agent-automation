@@ -16,8 +16,7 @@ export default function AuthPage() {
     e.preventDefault();
     setError("");
     setLoading(true);
-    await new Promise((r) => setTimeout(r, 400));
-    const ok = login(id, password);
+    const ok = await login(id, password);
     setLoading(false);
     if (ok) {
       setLocation("/dashboard");

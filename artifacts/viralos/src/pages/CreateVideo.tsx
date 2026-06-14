@@ -646,7 +646,7 @@ export default function CreateVideo() {
     advance();
   }
 
-  function handleDownload() {
+  async function handleDownload() {
     // 1. Try stored blob
     if (projectId !== null) {
       const ok = downloadVideo(projectId, title);

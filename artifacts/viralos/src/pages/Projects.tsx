@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Link } from "wouter";
 import { motion } from "framer-motion";
 import { useQueryClient } from "@tanstack/react-query";
@@ -10,7 +10,15 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
-import { hasVideoBlob, downloadVideo, getVideoUrl, getMimeType } from "@/lib/video-store";
+import {
+  hasVideoBlob,
+  downloadVideo,
+  getVideoUrl,
+  getMimeType,
+  loadAllVideosFromDB,
+  loadVideoFromDB,
+  deleteVideoFromDB,
+} from "@/lib/video-store";
 import { Video, Plus, Trash2, ChevronRight, Search, Loader2, Download, Play, X } from "lucide-react";
 
 const STATUS_COLORS: Record<string, string> = {
@@ -55,6 +63,8 @@ export default function Projects() {
   const [statusFilter, setStatusFilter] = useState("");
   const [platformFilter, setPlatformFilter] = useState("");
   const [preview, setPreview] = useState<VideoPreview | null>(null);
+  // Track which project IDs have videos available (in-memory OR IndexedDB)
+  const [availableVideos, setAvailableVideos] = useState<Set<number>>(new Set());
 
   const { data: projects, isLoading } = useListProjects({
     status: statusFilter || undefined,
@@ -63,10 +73,31 @@ export default function Projects() {
 
   const deleteProject = useDeleteProject();
 
+  // On mount: restore all video IDs from IndexedDB into memory cache
+  useEffect(() => {
+    loadAllVideosFromDB().then((ids) => {
+      if (ids.length > 0) {
+        setAvailableVideos(new Set(ids));
+      }
+    });
+  }, []);
+
+  // When projects load, merge with in-memory blobs
+  useEffect(() => {
+    if (!projects) return;
+    const doneIds = projects.filter((p) => p.status === "done").map((p) => p.id);
+    const inMemory = doneIds.filter((id) => hasVideoBlob(id));
+    if (inMemory.length > 0) {
+      setAvailableVideos((prev) => new Set([...prev, ...inMemory]));
+    }
+  }, [projects]);
+
   async function handleDelete(id: number, title: string) {
     if (!confirm(`Delete "${title}"?`)) return;
     try {
       await deleteProject.mutateAsync({ id });
+      await deleteVideoFromDB(id);
+      setAvailableVideos((prev) => { const s = new Set(prev); s.delete(id); return s; });
       queryClient.invalidateQueries({ queryKey: getListProjectsQueryKey() });
       toast({ title: "Project deleted" });
     } catch {
@@ -74,12 +105,28 @@ export default function Projects() {
     }
   }
 
-  function handlePlay(id: number, title: string) {
-    const url = getVideoUrl(id);
+  async function handlePlay(id: number, title: string) {
+    // 1. Try in-memory cache first
+    let url = getVideoUrl(id);
+
+    // 2. Fall back to IndexedDB
     if (!url) {
-      toast({ title: "Video not available in this session", description: "Re-generate or download the video first.", variant: "destructive" });
+      url = await loadVideoFromDB(id);
+      if (url) {
+        // Update available set now that we've confirmed it's in DB
+        setAvailableVideos((prev) => new Set([...prev, id]));
+      }
+    }
+
+    if (!url) {
+      toast({
+        title: "Video not found",
+        description: "This video was not saved. Re-generate it to create a new copy.",
+        variant: "destructive",
+      });
       return;
     }
+
     setPreview({ projectId: id, title, url, mime: getMimeType(id) });
   }
 
@@ -130,7 +177,7 @@ export default function Projects() {
           data-testid="select-platform-filter"
           value={platformFilter}
           onChange={(e) => setPlatformFilter(e.target.value)}
-          className="rounded-lg bg-input border border-border px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-ring"
+          className="rounded-lg bg-input border border-border px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-1 filter"
         >
           <option value="">All Platforms</option>
           {Object.entries(PLATFORM_LABELS).map(([v, l]) => (
@@ -182,7 +229,7 @@ export default function Projects() {
                       <div className="h-full bg-primary rounded-full" style={{ width: `${project.progress}%` }} />
                     </div>
                   )}
-                  {project.status === "done" && hasVideoBlob(project.id) && (
+                  {project.status === "done" && availableVideos.has(project.id) && (
                     <div className="flex items-center gap-1.5">
                       <button
                         onClick={() => handlePlay(project.id, project.title)}
@@ -192,7 +239,13 @@ export default function Projects() {
                         <Play className="w-3 h-3" /> Play
                       </button>
                       <button
-                        onClick={() => { downloadVideo(project.id, project.title); toast({ title: "Download started" }); }}
+                        onClick={async () => {
+                          // Ensure URL is loaded from IndexedDB if needed
+                          if (!hasVideoBlob(project.id)) await loadVideoFromDB(project.id);
+                          const ok = downloadVideo(project.id, project.title);
+                          if (ok) toast({ title: "Download started" });
+                          else toast({ title: "Video not found", variant: "destructive" });
+                        }}
                         title="Download video"
                         className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-emerald-500/15 border border-emerald-500/30 text-emerald-400 text-[11px] font-semibold hover:bg-emerald-500/25 transition-colors"
                       >
@@ -256,7 +309,11 @@ export default function Projects() {
             {/* Footer */}
             <div className="flex gap-2 px-4 py-3 border-t border-border">
               <button
-                onClick={() => { downloadVideo(preview.projectId, preview.title); toast({ title: "Download started" }); }}
+                onClick={async () => {
+                  if (!hasVideoBlob(preview.projectId)) await loadVideoFromDB(preview.projectId);
+                  const ok = downloadVideo(preview.projectId, preview.title);
+                  if (ok) toast({ title: "Download started" });
+                }}
                 className="flex-1 flex items-center justify-center gap-2 px-3 py-2 rounded-lg bg-emerald-500/15 border border-emerald-500/30 text-emerald-400 text-xs font-semibold hover:bg-emerald-500/25 transition-colors"
               >
                 <Download className="w-3.5 h-3.5" /> Download

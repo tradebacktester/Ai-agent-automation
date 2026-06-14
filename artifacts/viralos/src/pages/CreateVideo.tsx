@@ -345,7 +345,7 @@ export default function CreateVideo() {
           );
           videoGenRef.current = null;
 
-          if (projectId !== null) storeVideoBlob(projectId, blob);
+          if (projectId !== null) await storeVideoBlob(projectId, blob);
           else (window as any).__pendingVideoBlob = blob;
           setVideoReady(true);
           return;
@@ -656,7 +656,7 @@ export default function CreateVideo() {
     const pending = (window as any).__pendingVideoBlob as Blob | undefined;
     if (pending) {
       if (projectId !== null) {
-        storeVideoBlob(projectId, pending);
+        await storeVideoBlob(projectId, pending);
         downloadVideo(projectId, title);
       } else {
         const url = URL.createObjectURL(pending);

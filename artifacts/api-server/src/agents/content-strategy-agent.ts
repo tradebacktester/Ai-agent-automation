@@ -1,4 +1,4 @@
-import { openai } from "@workspace/integrations-openai-ai-server";
+import { groqClient } from "@workspace/integrations-openai-ai-server";
 import { db } from "@workspace/db";
 import { contentStrategiesTable } from "@workspace/db";
 import { recallMemories, storeMemory } from "./memory.js";
@@ -52,7 +52,7 @@ Return ONLY valid JSON:
   "competitiveEdge": ""
 }`;
 
-  const response = await openai.chat.completions.create({
+  const response = await groqClient.chat.completions.create({
     model: "llama-3.3-70b-versatile",
     max_tokens: 6000,
     messages: [{ role: "user", content: prompt }],

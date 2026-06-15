@@ -1,4 +1,4 @@
-import { openai } from "@workspace/integrations-openai-ai-server";
+import { groqClient } from "@workspace/integrations-openai-ai-server";
 import { db } from "@workspace/db";
 import { contentCalendarTable, contentSeriesTable } from "@workspace/db";
 import { storeMemory } from "./memory.js";
@@ -48,7 +48,7 @@ export async function runCalendarAgent(
     return d.toISOString().split("T")[0];
   });
 
-  const response = await openai.chat.completions.create({
+  const response = await groqClient.chat.completions.create({
     model: "llama-3.3-70b-versatile",
     max_tokens: 4000,
     messages: [
@@ -157,7 +157,7 @@ export async function runSeriesAgent(
 
   log("Designing serialized content series", { niche, platform, targetEpisodes });
 
-  const response = await openai.chat.completions.create({
+  const response = await groqClient.chat.completions.create({
     model: "llama-3.3-70b-versatile",
     max_tokens: 3000,
     messages: [

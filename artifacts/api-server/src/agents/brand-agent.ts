@@ -1,4 +1,4 @@
-import { openai } from "@workspace/integrations-openai-ai-server";
+import { groqClient } from "@workspace/integrations-openai-ai-server";
 import { db } from "@workspace/db";
 import { brandIdentitiesTable, channelsTable, storyUniversesTable } from "@workspace/db";
 import { storeMemory } from "./memory.js";
@@ -19,7 +19,7 @@ export async function runBrandAgent(prompt: string): Promise<AgentResult<{
 
   log("Building brand identity", { prompt });
 
-  const response = await openai.chat.completions.create({
+  const response = await groqClient.chat.completions.create({
     model: "llama-3.3-70b-versatile",
     max_tokens: 4000,
     messages: [
@@ -145,7 +145,7 @@ export async function runPsychologyAgent(
 
   log("Running psychological content optimization", { topic, targetEmotion, platform });
 
-  const response = await openai.chat.completions.create({
+  const response = await groqClient.chat.completions.create({
     model: "llama-3.3-70b-versatile",
     max_tokens: 2500,
     messages: [
@@ -214,7 +214,7 @@ export async function runUniverseAgent(
 
   log("Building story universe", { niche, universeTheme });
 
-  const response = await openai.chat.completions.create({
+  const response = await groqClient.chat.completions.create({
     model: "llama-3.3-70b-versatile",
     max_tokens: 3500,
     messages: [

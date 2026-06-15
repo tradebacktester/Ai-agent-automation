@@ -6,7 +6,7 @@
  */
 
 import { Router } from "express";
-import { openai } from "@workspace/integrations-openai-ai-server";
+import { groqClient } from "@workspace/integrations-openai-ai-server";
 
 const router = Router();
 
@@ -55,7 +55,7 @@ router.post("/review", async (req, res) => {
   const totalCoverage = meta.totalDuration;
 
   try {
-    const response = await openai.chat.completions.create({
+    const response = await groqClient.chat.completions.create({
       model: "llama-3.3-70b-versatile",
       max_tokens: 800,
       response_format: { type: "json_object" },

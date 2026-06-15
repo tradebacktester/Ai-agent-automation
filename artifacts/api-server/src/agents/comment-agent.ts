@@ -1,4 +1,4 @@
-import { openai } from "@workspace/integrations-openai-ai-server";
+import { groqClient } from "@workspace/integrations-openai-ai-server";
 import { db } from "@workspace/db";
 import { commentInsightsTable } from "@workspace/db";
 import { storeMemory } from "./memory.js";
@@ -32,7 +32,7 @@ export async function runCommentAgent(
     `"${c.text}"${c.likes ? ` (${c.likes} likes)` : ""}`
   ).join("\n");
 
-  const response = await openai.chat.completions.create({
+  const response = await groqClient.chat.completions.create({
     model: "llama-3.3-70b-versatile",
     max_tokens: 2500,
     messages: [
@@ -127,7 +127,7 @@ export async function runMonetizationAgent(
 
   log("Building monetization strategy", { niche, platform, audienceSize });
 
-  const response = await openai.chat.completions.create({
+  const response = await groqClient.chat.completions.create({
     model: "llama-3.3-70b-versatile",
     max_tokens: 2500,
     messages: [

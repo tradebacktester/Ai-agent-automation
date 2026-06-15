@@ -1,4 +1,4 @@
-import { openai } from "@workspace/integrations-openai-ai-server";
+import { groqClient } from "@workspace/integrations-openai-ai-server";
 import { recallMemories, storeMemory } from "./memory.js";
 import { runHookAgent } from "./hook-agent.js";
 import { runTrendAgent } from "./trend-agent.js";
@@ -70,7 +70,7 @@ export async function runJarvis(
   const lastUserMessage = messages[messages.length - 1]?.content ?? "";
   log("Processing user command", { command: lastUserMessage.slice(0, 80) });
 
-  const response = await openai.chat.completions.create({
+  const response = await groqClient.chat.completions.create({
     model: "llama-3.3-70b-versatile",
     max_tokens: 600,
     messages: [

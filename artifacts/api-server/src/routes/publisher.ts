@@ -4,7 +4,7 @@ import {
   socialAccountsTable, scheduledPostsTable, performanceAnalyticsTable,
 } from "@workspace/db";
 import { eq, desc, and } from "drizzle-orm";
-import { openai } from "@workspace/integrations-openai-ai-server";
+import { groqClient } from "@workspace/integrations-openai-ai-server";
 
 const router = Router();
 
@@ -65,7 +65,7 @@ router.post("/generate-metadata", async (req, res) => {
   };
   if (!topic) { res.status(400).json({ error: "topic required" }); return; }
 
-  const response = await openai.chat.completions.create({
+  const response = await groqClient.chat.completions.create({
     model: "llama-3.3-70b-versatile",
     max_tokens: 1500,
     messages: [

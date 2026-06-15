@@ -1,4 +1,4 @@
-import { openai } from "@workspace/integrations-openai-ai-server";
+import { groqClient } from "@workspace/integrations-openai-ai-server";
 import { db } from "@workspace/db";
 import { styleProfilesTable } from "@workspace/db";
 import { storeMemory } from "./memory.js";
@@ -33,7 +33,7 @@ export async function runPersonalityAgent(
     ? sampleScripts.map((s, i) => `Sample ${i + 1}:\n${s}`).join("\n\n")
     : "(No sample scripts provided — infer style from description)";
 
-  const response = await openai.chat.completions.create({
+  const response = await groqClient.chat.completions.create({
     model: "llama-3.3-70b-versatile",
     max_tokens: 4000,
     messages: [
@@ -172,7 +172,7 @@ export async function applyStyleToContent(
     return { success: false, error: "Style profile not found", logs };
   }
 
-  const response = await openai.chat.completions.create({
+  const response = await groqClient.chat.completions.create({
     model: "llama-3.3-70b-versatile",
     max_tokens: 2000,
     messages: [

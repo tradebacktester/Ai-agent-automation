@@ -1,4 +1,4 @@
-import { openai } from "@workspace/integrations-openai-ai-server";
+import { groqClient } from "@workspace/integrations-openai-ai-server";
 import { db } from "@workspace/db";
 import { learningInsightsTable, performanceAnalyticsTable } from "@workspace/db";
 import { storeMemory } from "./memory.js";
@@ -100,7 +100,7 @@ Return ONLY valid JSON:
   "loopIteration": 1
 }`;
 
-  const response = await openai.chat.completions.create({
+  const response = await groqClient.chat.completions.create({
     model: "llama-3.3-70b-versatile",
     max_tokens: 3000,
     messages: [
@@ -154,7 +154,7 @@ export async function runABTestAnalyzer(
 
   log("Analyzing A/B test variants", { variantCount: variants.length });
 
-  const response = await openai.chat.completions.create({
+  const response = await groqClient.chat.completions.create({
     model: "llama-3.3-70b-versatile",
     max_tokens: 1500,
     messages: [

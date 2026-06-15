@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { openai } from "@workspace/integrations-openai-ai-server";
+import { groqClient } from "@workspace/integrations-openai-ai-server";
 
 const router = Router();
 
@@ -18,7 +18,7 @@ router.post("/scene-analyze", async (req, res) => {
   const targetPlatform = platform ?? "YouTube Shorts / Instagram Reels";
 
   try {
-    const aiRes = await openai.chat.completions.create({
+    const aiRes = await groqClient.chat.completions.create({
       model: "llama-3.3-70b-versatile",
       max_tokens: 700,
       response_format: { type: "json_object" },

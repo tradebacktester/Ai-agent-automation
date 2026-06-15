@@ -14,7 +14,7 @@
  * 10. Virality Engine       — final score & memory storage
  */
 
-import { openai } from "@workspace/integrations-openai-ai-server";
+import { groqClient } from "@workspace/integrations-openai-ai-server";
 import { recallMemories, storeMemory } from "./memory.js";
 import { runResearchAgent } from "./research-agent.js";
 import { runTrendIntelligenceAgent } from "./trend-intelligence-agent.js";
@@ -66,7 +66,7 @@ async function generateScriptWithHooks(
     .slice(0, 3)
     .join("\n");
 
-  const response = await openai.chat.completions.create({
+  const response = await groqClient.chat.completions.create({
     model: "llama-3.3-70b-versatile",
     max_tokens: 1400,
     response_format: { type: "json_object" },

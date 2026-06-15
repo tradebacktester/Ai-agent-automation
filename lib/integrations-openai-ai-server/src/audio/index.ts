@@ -1,5 +1,5 @@
+export { openai } from "../client";
 export {
-  openai,
   detectAudioFormat,
   convertToWav,
   ensureCompatibleFormat,

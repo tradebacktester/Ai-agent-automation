@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { openai } from "@workspace/integrations-openai-ai-server";
+import { groqClient } from "@workspace/integrations-openai-ai-server";
 
 const router = Router();
 
@@ -23,7 +23,7 @@ router.post("/keywords", async (req, res) => {
   const styleHint = styleHints[videoStyle ?? "dark_motivation"] ?? styleHints["dark_motivation"];
 
   try {
-    const response = await openai.chat.completions.create({
+    const response = await groqClient.chat.completions.create({
       model: "llama-3.3-70b-versatile",
       max_tokens: 500,
       response_format: { type: "json_object" },
@@ -59,7 +59,7 @@ For each major scene/sentence, give a concrete visual search term for stock foot
     const queries: string[] = Array.isArray(data.queries) ? data.queries : [];
     res.json({ queries });
   } catch (err) {
-    console.error("B-roll keywords error:", err);
+    console.error("[ERROR] B-roll keyword generation failed:", String(err));
     res.status(500).json({ error: String(err), queries: [] });
   }
 });

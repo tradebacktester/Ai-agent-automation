@@ -2,7 +2,7 @@ import { Router } from "express";
 import { db, voiceoverJobsTable, projectsTable } from "@workspace/db";
 import { eq } from "drizzle-orm";
 import { GenerateVoiceoverBody } from "@workspace/api-zod";
-import { openai } from "@workspace/integrations-openai-ai-server";
+import { openaiAudioClient } from "@workspace/integrations-openai-ai-server";
 
 const router = Router();
 
@@ -157,7 +157,7 @@ async function synthesizeWithOpenAI(text: string, voiceStyle: string): Promise<B
   const voice = (OPENAI_VOICE_MAP[voiceStyle] ?? "onyx") as
     "alloy" | "echo" | "fable" | "onyx" | "nova" | "shimmer";
 
-  const response = await openai.audio.speech.create({
+  const response = await openaiAudioClient.audio.speech.create({
     model: "tts-1",
     voice,
     input: text.slice(0, 4096),
@@ -177,13 +177,13 @@ async function synthesizeWithOpenAIAndTimestamps(
   const audioBuffer = await synthesizeWithOpenAI(text, voiceStyle);
 
   // Use Whisper to get word-level timestamps from the generated audio
-  const file = new File([audioBuffer], "speech.mp3", { type: "audio/mpeg" });
-  const transcription = await openai.audio.transcriptions.create({
+  const file = new File([new Uint8Array(audioBuffer)], "speech.mp3", { type: "audio/mpeg" });
+  const transcription = await openaiAudioClient.audio.transcriptions.create({
     file,
     model: "whisper-1",
     response_format: "verbose_json",
     timestamp_granularities: ["word"],
-  } as Parameters<typeof openai.audio.transcriptions.create>[0]);
+  } as Parameters<typeof openaiAudioClient.audio.transcriptions.create>[0]);
 
   const whisperWords = (transcription as unknown as {
     words?: { word: string; start: number; end: number }[];
@@ -327,7 +327,7 @@ router.post("/synthesize-with-timestamps", async (req, res) => {
     console.log("[TTS] OpenAI TTS+Whisper OK, phrases:", phrases.length);
     res.json({ audioBase64, phrases, mimeType: "audio/mpeg" });
   } catch (err) {
-    console.error("[TTS] OpenAI fallback failed:", err);
+    console.error("[ERROR] Voice synthesis (OpenAI TTS+Whisper) failed:", String(err));
     res.status(500).json({ error: "Voice synthesis failed", details: String(err) });
   }
 });

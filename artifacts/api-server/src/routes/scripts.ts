@@ -2,7 +2,7 @@ import { Router } from "express";
 import { db, scriptsTable, projectsTable } from "@workspace/db";
 import { eq } from "drizzle-orm";
 import { GenerateScriptBody } from "@workspace/api-zod";
-import { openai } from "@workspace/integrations-openai-ai-server";
+import { groqClient } from "@workspace/integrations-openai-ai-server";
 import { runViralPipeline } from "../agents/viral-pipeline.js";
 
 const router = Router();
@@ -33,7 +33,7 @@ router.post("/generate", async (req, res) => {
   let cta = "Follow for more. Drop a comment if this hit different.";
 
   try {
-    const aiRes = await openai.chat.completions.create({
+    const aiRes = await groqClient.chat.completions.create({
       model: "llama-3.3-70b-versatile",
       max_tokens: 800,
       response_format: { type: "json_object" },
@@ -149,7 +149,7 @@ router.post("/generate-ai", async (req, res) => {
   const platformLabel = platform === "reels" ? "Instagram Reels" : "YouTube Shorts";
 
   try {
-    const aiRes = await openai.chat.completions.create({
+    const aiRes = await groqClient.chat.completions.create({
       model: "llama-3.3-70b-versatile",
       max_tokens: 900,
       response_format: { type: "json_object" },

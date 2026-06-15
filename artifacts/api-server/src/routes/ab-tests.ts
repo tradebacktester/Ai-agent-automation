@@ -5,7 +5,7 @@ import { eq, desc } from "drizzle-orm";
 import { runABTestAnalyzer } from "../agents/self-optimizer-agent.js";
 import { runHookAgent } from "../agents/hook-agent.js";
 import { runCaptionAgent } from "../agents/caption-agent.js";
-import { openai } from "@workspace/integrations-openai-ai-server";
+import { groqClient } from "@workspace/integrations-openai-ai-server";
 
 const router = Router();
 
@@ -52,7 +52,7 @@ router.post("/generate", async (req, res) => {
     }));
     name = `Caption Style Test`;
   } else {
-    const response = await openai.chat.completions.create({
+    const response = await groqClient.chat.completions.create({
       model: "llama-3.3-70b-versatile",
       max_tokens: 1500,
       messages: [

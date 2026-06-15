@@ -1,4 +1,4 @@
-import { openai } from "@workspace/integrations-openai-ai-server";
+import { groqClient } from "@workspace/integrations-openai-ai-server";
 import { recallMemories, storeMemory } from "./memory.js";
 import type { AgentResult, AgentLog } from "./types.js";
 
@@ -70,7 +70,7 @@ Return ONLY valid JSON:
   "typographyNotes": ""
 }`;
 
-  const response = await openai.chat.completions.create({
+  const response = await groqClient.chat.completions.create({
     model: "llama-3.3-70b-versatile",
     max_tokens: 6000,
     messages: [{ role: "user", content: prompt }],

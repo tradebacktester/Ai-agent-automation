@@ -1,4 +1,4 @@
-import { openai } from "@workspace/integrations-openai-ai-server";
+import { groqClient } from "@workspace/integrations-openai-ai-server";
 import { recallMemories, storeMemory } from "./memory.js";
 import type { AgentResult, AgentLog } from "./types.js";
 
@@ -43,7 +43,7 @@ export async function runTrendIntelligenceAgent(
 
   log("Analyzing viral opportunities", { prompt, platform });
 
-  const response = await openai.chat.completions.create({
+  const response = await groqClient.chat.completions.create({
     model: "llama-3.3-70b-versatile",
     max_tokens: 1000,
     response_format: { type: "json_object" },

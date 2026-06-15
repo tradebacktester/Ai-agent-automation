@@ -129,7 +129,7 @@ export default function CommandCenter() {
   const [messages, setMessages] = useState<ChatMessage[]>([
     {
       role: "assistant",
-      content: "**JARVIS online.** All 8 agents initialized and ready.\n\nI'm your autonomous content intelligence system — coordinating Trend, Hook, Emotion, Visual, Retention, Caption, Virality, and Memory agents to engineer viral content.\n\nI'm powered by GPT-4o and trained on viral content patterns. Tell me your goal and I'll activate the right agents, analyze the data, and build you a complete viral strategy.\n\nWhat are we creating today?",
+      content: "**JARVIS online.** All 8 agents initialized and ready.\n\nI'm your autonomous content intelligence system — coordinating Trend, Hook, Emotion, Visual, Retention, Caption, Virality, and Memory agents to engineer viral content.\n\nI'm powered by Groq / Llama 3.3 and trained on viral content patterns. Tell me your goal and I'll activate the right agents, analyze the data, and build you a complete viral strategy.\n\nWhat are we creating today?",
       timestamp: new Date().toISOString(),
       suggestions: ["Grow a dark motivation page", "Scan today's trends", "What makes content go viral?"],
     },
@@ -437,7 +437,7 @@ export default function CommandCenter() {
           <div>
             <p className="text-sm font-bold text-foreground tracking-wide">JARVIS Command Center</p>
             <p className="text-[10px] text-emerald-400 flex items-center gap-1">
-              <Radio className="w-2.5 h-2.5" /> 8 agents online · GPT-4o powered · Neural network active
+              <Radio className="w-2.5 h-2.5" /> 8 agents online · Groq / Llama 3.3 · Neural network active
             </p>
           </div>
         </div>
@@ -572,7 +572,7 @@ export default function CommandCenter() {
               </motion.button>
             </div>
             <p className="text-[9px] text-muted-foreground/40 mt-1.5 text-center">
-              Enter to send · Shift+Enter for new line · Powered by GPT-4o
+              Enter to send · Shift+Enter for new line · Powered by Groq / Llama 3.3
             </p>
           </div>
         </div>

@@ -101,7 +101,7 @@ export default function StrategyPage() {
           <h1 className="text-2xl font-bold tracking-tight flex items-center gap-2">
             <Brain className="w-6 h-6 text-primary" /> Content Strategy Engine
           </h1>
-          <p className="text-sm text-muted-foreground mt-0.5">Type your niche — GPT-4o builds your complete niche domination plan</p>
+          <p className="text-sm text-muted-foreground mt-0.5">Type your niche — Groq AI builds your complete niche domination plan</p>
         </div>
         {result && (
           <button onClick={() => { setResult(null); }}
@@ -154,7 +154,7 @@ export default function StrategyPage() {
         <button onClick={generate} disabled={loading || !niche.trim() || !goal.trim()}
           className="flex items-center gap-2 px-5 py-2.5 rounded-lg bg-primary text-primary-foreground text-sm font-semibold hover:bg-primary/90 transition-colors disabled:opacity-50 glow-blue">
           {loading
-            ? <><Loader2 className="w-4 h-4 animate-spin" /> GPT-4o building strategy...</>
+            ? <><Loader2 className="w-4 h-4 animate-spin" /> Groq AI building strategy...</>
             : <><Sparkles className="w-4 h-4" /> Generate Strategy</>}
         </button>
       </div>

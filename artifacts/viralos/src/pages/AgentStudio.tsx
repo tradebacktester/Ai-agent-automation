@@ -138,7 +138,7 @@ export default function AgentStudio() {
       { agent: "Visual Director", message: "Composing cinematic storyboard and color strategy..." },
       { agent: "Retention Agent", message: "Analyzing pacing, detecting dead zones, inserting pattern interrupts..." },
       { agent: "Caption Agent", message: "Generating Hormozi-style, dark cinematic, and anime caption sets..." },
-      { agent: "Virality Engine", message: "Computing viral probability across 6 dimensions with GPT-4o..." },
+      { agent: "Virality Engine", message: "Computing viral probability across 6 dimensions with Groq AI..." },
       { agent: "AI Memory", message: "Storing high-performance patterns to cross-session memory bank..." },
     ];
 
@@ -210,7 +210,7 @@ export default function AgentStudio() {
           <h1 className="text-2xl font-bold tracking-tight flex items-center gap-2">
             <Bot className="w-6 h-6 text-primary" /> AI Agent Studio
           </h1>
-          <p className="text-sm text-muted-foreground mt-0.5">8-agent autonomous content pipeline — GPT-4o powered</p>
+          <p className="text-sm text-muted-foreground mt-0.5">8-agent autonomous content pipeline — Groq / Llama 3.3 powered</p>
         </div>
         <button onClick={scanTrends} disabled={trendScanning}
           className="flex items-center gap-2 px-4 py-2 rounded-lg bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-sm font-medium hover:bg-emerald-500/20 transition-colors disabled:opacity-50">
@@ -320,7 +320,7 @@ export default function AgentStudio() {
             <label className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider block mb-1.5">Agent Mode</label>
             <div className="flex flex-wrap gap-2">
               {([
-                ["full_pipeline", "Full Pipeline", "All 8 agents · GPT-4o"],
+                ["full_pipeline", "Full Pipeline", "All 8 agents · Groq AI"],
                 ["hooks_only", "Hooks Only", "Hook Agent"],
                 ["virality_check", "Virality Check", "Emotion + Virality"],
                 ["visual_only", "Visual Only", "Visual Director"],
@@ -373,7 +373,7 @@ export default function AgentStudio() {
               {running && liveAgentLogs.length === 0 && (
                 <div className="flex items-center gap-2 text-[11px] text-muted-foreground">
                   <Loader2 className="w-3.5 h-3.5 animate-spin text-primary shrink-0" />
-                  Initializing 8-agent GPT-4o pipeline...
+                  Initializing 8-agent Groq AI pipeline...
                 </div>
               )}
             </div>

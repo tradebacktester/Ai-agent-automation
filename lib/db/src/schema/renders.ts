@@ -1,4 +1,4 @@
-import { pgTable, text, serial, timestamp, integer } from "drizzle-orm/pg-core";
+import { pgTable, text, serial, timestamp, integer, jsonb } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
 
@@ -10,6 +10,7 @@ export const renderJobsTable = pgTable("render_jobs", {
   stage: text("stage"),
   outputUrl: text("output_url"),
   errorMessage: text("error_message"),
+  metadata: jsonb("metadata").$type<Record<string, unknown>>().default({}),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
 
@@ -21,6 +22,7 @@ export const videosTable = pgTable("videos", {
   platform: text("platform").notNull(),
   durationSec: integer("duration_sec").notNull().default(0),
   fileSizeBytes: integer("file_size_bytes"),
+  metadata: jsonb("metadata").$type<Record<string, unknown>>().default({}),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
 

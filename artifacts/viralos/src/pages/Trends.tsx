@@ -2,8 +2,10 @@ import { useState } from "react";
 import { Link } from "wouter";
 import { motion } from "framer-motion";
 import { useListTrends } from "@workspace/api-client-react";
+import { useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
-import { TrendingUp, Plus, Loader2, Zap } from "lucide-react";
+import { TrendingUp, Plus, Loader2, Zap, RefreshCw } from "lucide-react";
+import { useToast } from "@/components/ui/use-toast";
 
 const PLATFORM_LABELS: Record<string, string> = {
   youtube_shorts: "YT Shorts",
@@ -20,6 +22,12 @@ const SCORE_COLORS = (score: number) => {
   return "text-muted-foreground";
 };
 
+const MOMENTUM_COLORS: Record<string, string> = {
+  rising: "text-emerald-400 bg-emerald-400/10",
+  peaking: "text-yellow-400 bg-yellow-400/10",
+  falling: "text-orange-400 bg-orange-400/10",
+};
+
 const container = {
   hidden: {},
   show: { transition: { staggerChildren: 0.04 } },
@@ -32,6 +40,9 @@ const item = {
 export default function Trends() {
   const [platformFilter, setPlatformFilter] = useState("");
   const [categoryFilter, setCategoryFilter] = useState("");
+  const [refreshing, setRefreshing] = useState(false);
+  const { toast } = useToast();
+  const queryClient = useQueryClient();
 
   const { data: trends, isLoading } = useListTrends({
     platform: platformFilter || undefined,
@@ -40,6 +51,29 @@ export default function Trends() {
 
   const categories = [...new Set(trends?.map((t) => t.category) ?? [])];
 
+  const handleRefresh = async () => {
+    setRefreshing(true);
+    try {
+      const res = await fetch("/api/trends/refresh", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({}),
+      });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const data = await res.json();
+      await queryClient.invalidateQueries();
+      toast({ title: `Trends refreshed — ${data.count} fresh topics loaded from Groq AI` });
+    } catch (err) {
+      toast({
+        title: "Refresh failed",
+        description: err instanceof Error ? err.message : "Could not connect to AI",
+        variant: "destructive",
+      });
+    } finally {
+      setRefreshing(false);
+    }
+  };
+
   return (
     <div className="p-6 space-y-5">
       <div className="flex items-center justify-between">
@@ -47,12 +81,25 @@ export default function Trends() {
           <h1 className="text-2xl font-bold tracking-tight">Trend Radar</h1>
           <p className="text-sm text-muted-foreground mt-0.5">Viral topics ranked by momentum score</p>
         </div>
-        <Link href="/create">
-          <Button data-testid="button-create-from-trend" className="gap-2">
-            <Plus className="w-4 h-4" />
-            Create From Trend
+        <div className="flex items-center gap-2">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={handleRefresh}
+            disabled={refreshing}
+            className="gap-2"
+            data-testid="button-refresh-trends"
+          >
+            {refreshing ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <RefreshCw className="w-3.5 h-3.5" />}
+            {refreshing ? "Refreshing..." : "Refresh with AI"}
           </Button>
-        </Link>
+          <Link href="/create">
+            <Button data-testid="button-create-from-trend" className="gap-2">
+              <Plus className="w-4 h-4" />
+              Create From Trend
+            </Button>
+          </Link>
+        </div>
       </div>
 
       {/* Filters */}
@@ -91,7 +138,11 @@ export default function Trends() {
         <div className="glass rounded-xl border border-border p-16 text-center">
           <TrendingUp className="w-10 h-10 text-muted-foreground mx-auto mb-3" />
           <p className="text-sm text-muted-foreground">No trends found</p>
-          <p className="text-xs text-muted-foreground mt-1">Trends are seeded with sample data on first run</p>
+          <p className="text-xs text-muted-foreground mt-1">Click "Refresh with AI" to load live trending topics</p>
+          <Button variant="outline" size="sm" onClick={handleRefresh} disabled={refreshing} className="mt-4 gap-2">
+            {refreshing ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <RefreshCw className="w-3.5 h-3.5" />}
+            Load Trends
+          </Button>
         </div>
       ) : (
         <motion.div variants={container} initial="hidden" animate="show" className="space-y-2">
@@ -112,6 +163,11 @@ export default function Trends() {
                   <div className="flex items-center gap-2 mt-0.5">
                     <span className="text-[10px] text-muted-foreground bg-muted px-1.5 py-0.5 rounded">{trend.category}</span>
                     <span className="text-[10px] text-muted-foreground">{PLATFORM_LABELS[trend.platform] ?? trend.platform}</span>
+                    {(trend as unknown as { momentum?: string }).momentum && (
+                      <span className={`text-[10px] px-1.5 py-0.5 rounded font-medium ${MOMENTUM_COLORS[(trend as unknown as { momentum?: string }).momentum ?? "rising"] ?? "text-muted-foreground"}`}>
+                        {(trend as unknown as { momentum?: string }).momentum}
+                      </span>
+                    )}
                   </div>
                 </div>
                 <div className="flex items-center gap-3 shrink-0">

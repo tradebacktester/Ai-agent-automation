@@ -9,6 +9,8 @@ export const trendsTable = pgTable("trends", {
   score: integer("score").notNull().default(0),
   category: text("category").notNull(),
   emoji: text("emoji"),
+  momentum: text("momentum").default("rising"),
+  description: text("description"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
 
